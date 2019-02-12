@@ -5,7 +5,6 @@ import brave.internal.Nullable;
 import brave.internal.PredefinedPropagationFields;
 import brave.internal.PropagationFields;
 import brave.internal.PropagationFieldsFactory;
-import brave.internal.TraceContexts;
 import brave.propagation.TraceContext.Extractor;
 import brave.propagation.TraceContext.Injector;
 import java.util.ArrayList;
@@ -14,9 +13,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Allows you to propagate predefined request-scoped fields, usually but not always HTTP headers.
@@ -70,19 +71,19 @@ import java.util.Map;
  */
 public final class ExtraFieldPropagation<K> implements Propagation<K> {
   /** Wraps an underlying propagation implementation, pushing one or more fields */
-  public static Propagation.Factory newFactory(Propagation.Factory delegate, String... fieldNames) {
+  public static Factory newFactory(Propagation.Factory delegate, String... fieldNames) {
     if (delegate == null) throw new NullPointerException("delegate == null");
     if (fieldNames == null) throw new NullPointerException("fieldNames == null");
-    String[] validated = ensureLowerCase(Arrays.asList(fieldNames));
+    String[] validated = ensureLowerCase(new LinkedHashSet<>(Arrays.asList(fieldNames)));
     return new Factory(delegate, validated, validated);
   }
 
   /** Wraps an underlying propagation implementation, pushing one or more fields */
-  public static Propagation.Factory newFactory(Propagation.Factory delegate,
+  public static Factory newFactory(Propagation.Factory delegate,
       Collection<String> fieldNames) {
     if (delegate == null) throw new NullPointerException("delegate == null");
     if (fieldNames == null) throw new NullPointerException("fieldNames == null");
-    String[] validated = ensureLowerCase(fieldNames);
+    String[] validated = ensureLowerCase(new LinkedHashSet<>(fieldNames));
     return new Factory(delegate, validated, validated);
   }
 
@@ -92,7 +93,7 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
 
   public static final class FactoryBuilder {
     final Propagation.Factory delegate;
-    final List<String> fieldNames = new ArrayList<>();
+    final Set<String> fieldNames = new LinkedHashSet<>();
     final Map<String, String[]> prefixedNames = new LinkedHashMap<>();
 
     FactoryBuilder(Propagation.Factory delegate) {
@@ -124,7 +125,7 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
       if (prefix == null) throw new NullPointerException("prefix == null");
       if (prefix.isEmpty()) throw new IllegalArgumentException("prefix is empty");
       if (fieldNames == null) throw new NullPointerException("fieldNames == null");
-      prefixedNames.put(prefix, ensureLowerCase(fieldNames));
+      prefixedNames.put(prefix, ensureLowerCase(new LinkedHashSet<>(fieldNames)));
       return this;
     }
 
@@ -134,20 +135,37 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
         return new Factory(delegate, validated, validated);
       }
       List<String> fields = new ArrayList<>(), keys = new ArrayList<>();
+      List<Integer> keyToFieldList = new ArrayList<>();
       if (!fieldNames.isEmpty()) {
         List<String> validated = Arrays.asList(ensureLowerCase(fieldNames));
-        fields.addAll(validated);
-        keys.addAll(validated);
+        for (int i = 0, length = validated.size(); i < length; i++) {
+          String nextFieldName = validated.get(i);
+          fields.add(nextFieldName);
+          keys.add(nextFieldName);
+          keyToFieldList.add(i);
+        }
       }
       for (Map.Entry<String, String[]> entry : prefixedNames.entrySet()) {
         String nextPrefix = entry.getKey();
         String[] nextFieldNames = entry.getValue();
-        for (String nextFieldName : nextFieldNames) {
-          fields.add(nextFieldName);
+        for (int i = 0; i < nextFieldNames.length; i++) {
+          String nextFieldName = nextFieldNames[i];
+          int index = fields.indexOf(nextFieldName);
+          if (index == -1) {
+            index = fields.size();
+            fields.add(nextFieldName);
+          }
           keys.add(nextPrefix + nextFieldName);
+          keyToFieldList.add(index);
         }
       }
-      return new Factory(delegate, fields.toArray(new String[0]), keys.toArray(new String[0]));
+      int keysLength = keys.size();
+      int[] keyToField = new int[keysLength];
+      for (int i = 0; i < keysLength; i++) {
+        keyToField[i] = keyToFieldList.get(i);
+      }
+      return new Factory(delegate, fields.toArray(new String[0]), keys.toArray(new String[0]),
+          keyToField);
     }
   }
 
@@ -219,14 +237,31 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
     PropagationFields.put(context, lowercase(name), value, Extra.class);
   }
 
-  static final class Factory extends Propagation.Factory {
+  public static final class Factory extends Propagation.Factory {
     final Propagation.Factory delegate;
     final String[] fieldNames;
     final String[] keyNames;
+    final int[] keyToField;
     final ExtraFactory extraFactory;
 
     Factory(Propagation.Factory delegate, String[] fieldNames, String[] keyNames) {
+      this(delegate, fieldNames, keyNames, keyToField(keyNames));
+    }
+
+    /**
+     * We have a key to field mapping as there may be multiple propagation keys that reference the
+     * same field. For example, "baggage-userid" and "baggage_userid".
+     */
+    static int[] keyToField(String[] keyNames) {
+      int[] result = new int[keyNames.length];
+      for (int i = 0; i < result.length; i++) result[i] = i;
+      return result;
+    }
+
+    Factory(Propagation.Factory delegate, String[] fieldNames, String[] keyNames,
+        int[] keyToField) {
       this.delegate = delegate;
+      this.keyToField = keyToField;
       this.fieldNames = fieldNames;
       this.keyNames = keyNames;
       this.extraFactory = new ExtraFactory(fieldNames);
@@ -240,8 +275,9 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
       return delegate.requires128BitTraceId();
     }
 
-    @Override public final <K> Propagation<K> create(Propagation.KeyFactory<K> keyFactory) {
-      int length = fieldNames.length;
+    @Override
+    public final <K> ExtraFieldPropagation<K> create(Propagation.KeyFactory<K> keyFactory) {
+      int length = keyNames.length;
       List<K> keys = new ArrayList<>(length);
       for (int i = 0; i < length; i++) {
         keys.add(keyFactory.create(keyNames[i]));
@@ -255,23 +291,33 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
     }
   }
 
+  final Factory factory;
   final Propagation<K> delegate;
-  final ExtraFactory extraFactory;
-  final String[] fieldNames;
-  final List<K> keys, allKeys;
+  final List<K> keys;
 
   ExtraFieldPropagation(Factory factory, Propagation.KeyFactory<K> keyFactory, List<K> keys) {
+    this.factory = factory;
     this.delegate = factory.delegate.create(keyFactory);
-    this.extraFactory = factory.extraFactory;
-    this.fieldNames = factory.fieldNames;
     this.keys = keys;
-    List<K> allKeys = new ArrayList<>(delegate.keys());
-    allKeys.addAll(keys);
-    this.allKeys = allKeys;
   }
 
+  /**
+   * Returns the extra keys this component can extract. This result is lowercase and does not
+   * include any {@link #keys() trace context keys}.
+   */
+  // This is here to support extraction from carriers missing a get field by name function. The only
+  // known example is OpenTracing TextMap https://github.com/opentracing/opentracing-java/issues/305
+  public List<K> extraKeys() {
+    return keys;
+  }
+
+  /**
+   * Only returns trace context keys. Extra field names are not returned to ensure tools don't
+   * delete them. This is to support users accessing extra fields without Brave apis (ex via
+   * headers).
+   */
   @Override public List<K> keys() {
-    return allKeys;
+    return delegate.keys();
   }
 
   @Override public <C> Injector<C> injector(Setter<C, K> setter) {
@@ -283,15 +329,13 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
   }
 
   static final class ExtraFieldInjector<C, K> implements Injector<C> {
+    final ExtraFieldPropagation<K> propagation;
     final Injector<C> delegate;
     final Propagation.Setter<C, K> setter;
-    final String[] fieldNames;
-    final List<K> keys;
 
     ExtraFieldInjector(ExtraFieldPropagation<K> propagation, Setter<C, K> setter) {
+      this.propagation = propagation;
       this.delegate = propagation.delegate.injector(setter);
-      this.fieldNames = propagation.fieldNames;
-      this.keys = propagation.keys;
       this.setter = setter;
     }
 
@@ -303,10 +347,10 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
     }
 
     void inject(Extra fields, C carrier) {
-      for (int i = 0, length = keys.size(); i < length; i++) {
-        String maybeValue = fields.get(i);
+      for (int i = 0, length = propagation.keys.size(); i < length; i++) {
+        String maybeValue = fields.get(propagation.factory.keyToField[i]);
         if (maybeValue == null) continue;
-        setter.put(carrier, keys.get(i), maybeValue);
+        setter.put(carrier, propagation.keys.get(i), maybeValue);
       }
     }
   }
@@ -326,11 +370,11 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
       TraceContextOrSamplingFlags result = delegate.extract(carrier);
 
       // always allocate in case fields are added late
-      Extra fields = propagation.extraFactory.create();
-      for (int i = 0, length = propagation.fieldNames.length; i < length; i++) {
+      Extra fields = propagation.factory.extraFactory.create();
+      for (int i = 0, length = propagation.keys.size(); i < length; i++) {
         String maybeValue = getter.get(carrier, propagation.keys.get(i));
         if (maybeValue == null) continue;
-        fields.put(i, maybeValue);
+        fields.put(propagation.factory.keyToField[i], maybeValue);
       }
       return result.toBuilder().addExtra(fields).build();
     }
@@ -357,7 +401,7 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
       this.fieldNames = fieldNames;
     }
 
-    @Override protected Class<Extra> type() {
+    @Override public Class<Extra> type() {
       return Extra.class;
     }
 
@@ -370,7 +414,7 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
     }
 
     @Override protected TraceContext contextWithExtra(TraceContext context, List<Object> extra) {
-      return TraceContexts.contextWithExtra(context, extra); // more efficient
+      return context.withExtra(extra); // more efficient
     }
   }
 

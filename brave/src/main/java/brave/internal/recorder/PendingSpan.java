@@ -1,6 +1,7 @@
 package brave.internal.recorder;
 
 import brave.Clock;
+import brave.handler.MutableSpan;
 
 public final class PendingSpan {
   final MutableSpan state;

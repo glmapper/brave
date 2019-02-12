@@ -1,20 +1,31 @@
 package brave.context.log4j12;
 
-import brave.internal.HexCodec;
 import brave.internal.Nullable;
 import brave.propagation.CurrentTraceContext;
 import brave.propagation.TraceContext;
 import brave.test.propagation.CurrentTraceContextTest;
+import java.util.function.Supplier;
 import org.apache.log4j.MDC;
 import org.junit.ComparisonFailure;
 import org.junit.Test;
 
+import static brave.context.log4j12.MDCScopeDecoratorTest.assumeMDCWorks;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class MDCCurrentTraceContextTest extends CurrentTraceContextTest {
 
-  @Override protected CurrentTraceContext newCurrentTraceContext() {
-    return MDCCurrentTraceContext.create();
+  public MDCCurrentTraceContextTest() {
+    assumeMDCWorks();
+  }
+
+  @Override protected Class<? extends Supplier<CurrentTraceContext>> currentSupplier() {
+    return CurrentSupplier.class;
+  }
+
+  static class CurrentSupplier implements Supplier<CurrentTraceContext> {
+    @Override public CurrentTraceContext get() {
+      return MDCCurrentTraceContext.create();
+    }
   }
 
   @Test public void is_inheritable() throws Exception {
@@ -30,11 +41,10 @@ public class MDCCurrentTraceContextTest extends CurrentTraceContextTest {
     if (context != null) {
       assertThat(MDC.get("traceId"))
           .isEqualTo(context.traceIdString());
-      long parentId = context.parentIdAsLong();
       assertThat(MDC.get("parentId"))
-          .isEqualTo(parentId != 0L ? HexCodec.toLowerHex(parentId) : null);
+          .isEqualTo(context.parentIdString());
       assertThat(MDC.get("spanId"))
-          .isEqualTo(HexCodec.toLowerHex(context.spanId()));
+          .isEqualTo(context.spanIdString());
     } else {
       assertThat(MDC.get("traceId"))
           .isNull();

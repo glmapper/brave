@@ -1,9 +1,14 @@
 package brave;
 
+import brave.context.log4j2.ThreadContextScopeDecorator;
+import brave.handler.FinishedSpanHandler;
+import brave.handler.MutableSpan;
 import brave.http.HttpServerBenchmarks;
 import brave.okhttp3.TracingCallFactory;
 import brave.propagation.B3Propagation;
 import brave.propagation.ExtraFieldPropagation;
+import brave.propagation.ThreadLocalCurrentTraceContext;
+import brave.propagation.TraceContext;
 import brave.sampler.Sampler;
 import brave.servlet.TracingFilter;
 import io.undertow.servlet.Servlets;
@@ -73,9 +78,40 @@ public class EndToEndBenchmarks extends HttpServerBenchmarks {
     }
   }
 
+  public static class OnlySampledLocal extends ForwardingTracingFilter {
+    public OnlySampledLocal() {
+      super(Tracing.newBuilder()
+          .addFinishedSpanHandler(new FinishedSpanHandler() {
+            @Override public boolean handle(TraceContext context, MutableSpan span) {
+              return true;
+            }
+
+            @Override public boolean alwaysSampleLocal() {
+              return true;
+            }
+          })
+          .sampler(Sampler.NEVER_SAMPLE)
+          .spanReporter(AsyncReporter.create(new NoopSender()))
+          .build());
+    }
+  }
+
   public static class Traced extends ForwardingTracingFilter {
     public Traced() {
       super(Tracing.newBuilder()
+          .spanReporter(AsyncReporter.create(new NoopSender()))
+          .build());
+    }
+  }
+
+  public static class TracedCorrelated extends ForwardingTracingFilter {
+    public TracedCorrelated() {
+      super(Tracing.newBuilder()
+          .currentTraceContext(ThreadLocalCurrentTraceContext.newBuilder()
+              // intentionally added twice to test overhead of multiple correlations
+              .addScopeDecorator(ThreadContextScopeDecorator.create())
+              .addScopeDecorator(ThreadContextScopeDecorator.create())
+              .build())
           .spanReporter(AsyncReporter.create(new NoopSender()))
           .build());
     }
@@ -107,12 +143,18 @@ public class EndToEndBenchmarks extends HttpServerBenchmarks {
     servletBuilder.addFilter(new FilterInfo("Unsampled", Unsampled.class))
         .addFilterUrlMapping("Unsampled", "/unsampled", REQUEST)
         .addFilterUrlMapping("Unsampled", "/unsampled/api", REQUEST)
+        .addFilter(new FilterInfo("OnlySampledLocal", OnlySampledLocal.class))
+        .addFilterUrlMapping("OnlySampledLocal", "/onlysampledlocal", REQUEST)
+        .addFilterUrlMapping("OnlySampledLocal", "/onlysampledlocal/api", REQUEST)
         .addFilter(new FilterInfo("Traced", Traced.class))
         .addFilterUrlMapping("Traced", "/traced", REQUEST)
         .addFilterUrlMapping("Traced", "/traced/api", REQUEST)
         .addFilter(new FilterInfo("TracedExtra", TracedExtra.class))
         .addFilterUrlMapping("TracedExtra", "/tracedextra", REQUEST)
         .addFilterUrlMapping("TracedExtra", "/tracedextra/api", REQUEST)
+        .addFilter(new FilterInfo("TracedCorrelated", TracedCorrelated.class))
+        .addFilterUrlMapping("TracedCorrelated", "/tracedcorrelated", REQUEST)
+        .addFilterUrlMapping("TracedCorrelated", "/tracedcorrelated/api", REQUEST)
         .addFilter(new FilterInfo("Traced128", Traced128.class))
         .addFilterUrlMapping("Traced128", "/traced128", REQUEST)
         .addFilterUrlMapping("Traced128", "/traced128/api", REQUEST)
@@ -126,7 +168,10 @@ public class EndToEndBenchmarks extends HttpServerBenchmarks {
   // Convenience main entry-point
   public static void main(String[] args) throws Exception {
     Options opt = new OptionsBuilder()
-        .include(".*" + EndToEndBenchmarks.class.getSimpleName() + ".*")
+        .addProfiler("gc")
+        .include(".*"
+            + EndToEndBenchmarks.class.getSimpleName()
+            + ".*(tracedCorrelatedServer_get|tracedServer_get)$")
         .build();
 
     new Runner(opt).run();

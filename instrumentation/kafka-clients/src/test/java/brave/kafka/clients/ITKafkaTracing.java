@@ -168,7 +168,7 @@ public class ITKafkaTracing {
     allSpans.add(takeConsumerSpan());
     allSpans.add(takeProducerSpan());
 
-    List<DependencyLink> links = new DependencyLinker().putTrace(allSpans.iterator()).link();
+    List<DependencyLink> links = new DependencyLinker().putTrace(allSpans).link();
     assertThat(links).extracting("parent", "child").containsExactly(
         tuple("producer", "kafka"),
         tuple("kafka", "consumer")
@@ -195,7 +195,7 @@ public class ITKafkaTracing {
           .containsEntry(KAFKA_TOPIC_TAG, record.topic());
 
       assertThat(processor.context().traceIdString()).isEqualTo(consumerSpan.traceId());
-      assertThat(HexCodec.toLowerHex(processor.context().parentId())).isEqualTo(consumerSpan.id());
+      assertThat(processor.context().parentIdString()).isEqualTo(consumerSpan.id());
 
       processor.start().name("processor").finish();
 

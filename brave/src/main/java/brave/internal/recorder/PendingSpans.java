@@ -1,20 +1,18 @@
 package brave.internal.recorder;
 
 import brave.Clock;
+import brave.handler.FinishedSpanHandler;
+import brave.handler.MutableSpan;
+import brave.internal.InternalPropagation;
 import brave.internal.Nullable;
-import brave.internal.TraceContexts;
+import brave.internal.Platform;
 import brave.propagation.TraceContext;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import zipkin2.Endpoint;
-import zipkin2.Span;
-import zipkin2.reporter.Reporter;
 
 /**
  * Similar to Finagle's deadline span map, except this is GC pressure as opposed to timeout driven.
@@ -30,34 +28,20 @@ import zipkin2.reporter.Reporter;
 public final class PendingSpans extends ReferenceQueue<TraceContext> {
   // Eventhough we only put by RealKey, we allow get and remove by LookupKey
   final ConcurrentMap<Object, PendingSpan> delegate = new ConcurrentHashMap<>(64);
-  // Used when flushing spans
-  final Endpoint localEndpoint;
   final Clock clock;
-  final Reporter<zipkin2.Span> reporter;
+  final FinishedSpanHandler zipkinHandler; // Used when flushing spans
   final AtomicBoolean noop;
 
-  public PendingSpans(
-      Endpoint localEndpoint,
-      Clock clock,
-      Reporter<zipkin2.Span> reporter,
-      AtomicBoolean noop
-  ) {
-    this.localEndpoint = localEndpoint;
+  public PendingSpans(Clock clock, FinishedSpanHandler zipkinHandler, AtomicBoolean noop) {
     this.clock = clock;
-    this.reporter = reporter;
+    this.zipkinHandler = zipkinHandler;
     this.noop = noop;
   }
 
-  @Nullable PendingSpan get(TraceContext context) {
+  public PendingSpan getOrCreate(TraceContext context, boolean start) {
     if (context == null) throw new NullPointerException("context == null");
     reportOrphanedSpans();
-    LookupKey lookupKey = getLookupKey();
-    lookupKey.set(context);
-    return delegate.get(lookupKey);
-  }
-
-  public PendingSpan getOrCreate(TraceContext context, boolean start) {
-    PendingSpan result = get(context);
+    PendingSpan result = delegate.get(context);
     if (result != null) return result;
 
     MutableSpan data = new MutableSpan();
@@ -84,10 +68,16 @@ public final class PendingSpans extends ReferenceQueue<TraceContext> {
     // server can share the same ID. Essentially, a shared span is similar to a child.
     PendingSpan parent = null;
     if (context.shared() || parentId != 0L) {
-      LookupKey lookupKey = getLookupKey();
       long spanId = parentId != 0L ? parentId : context.spanId();
-      lookupKey.set(context.traceIdHigh(), context.traceId(), spanId, false);
-      parent = delegate.get(lookupKey);
+      parent = delegate.get(InternalPropagation.instance.newTraceContext(
+          0,
+          context.traceIdHigh(),
+          context.traceId(),
+          0,
+          0,
+          spanId,
+          Collections.emptyList()
+      ));
     }
     return parent != null ? parent.clock : null;
   }
@@ -95,9 +85,7 @@ public final class PendingSpans extends ReferenceQueue<TraceContext> {
   /** @see brave.Span#abandon() */
   public boolean remove(TraceContext context) {
     if (context == null) throw new NullPointerException("context == null");
-    LookupKey lookupKey = getLookupKey();
-    lookupKey.set(context);
-    PendingSpan last = delegate.remove(lookupKey);
+    PendingSpan last = delegate.remove(context);
     reportOrphanedSpans(); // also clears the reference relating to the recent remove
     return last != null;
   }
@@ -109,26 +97,26 @@ public final class PendingSpans extends ReferenceQueue<TraceContext> {
     // careful to not penalize the performance of the caller. It is better to cache time when
     // flushing a span than hurt performance of unrelated operations by calling
     // currentTimeMicroseconds N times
-    Span.Builder builder = null;
     long flushTime = 0L;
+    boolean noop = zipkinHandler == FinishedSpanHandler.NOOP || this.noop.get();
     while ((contextKey = (RealKey) poll()) != null) {
       PendingSpan value = delegate.remove(contextKey);
-      if (value == null || noop.get() || !contextKey.sampled) continue;
-      if (builder != null) {
-        builder.clear();
-      } else {
-        builder = Span.newBuilder();
-        flushTime = clock.currentTimeMicroseconds();
+      if (noop || value == null || !contextKey.sampled) continue;
+      if (flushTime == 0L) flushTime = clock.currentTimeMicroseconds();
+
+      TraceContext context = InternalPropagation.instance.newTraceContext(
+          InternalPropagation.FLAG_SAMPLED_SET | InternalPropagation.FLAG_SAMPLED,
+          contextKey.traceIdHigh, contextKey.traceId,
+          contextKey.localRootId, 0L, contextKey.spanId,
+          Collections.emptyList()
+      );
+      value.state.annotate(flushTime, "brave.flush");
+
+      try {
+        zipkinHandler.handle(context, value.state);
+      } catch (RuntimeException e) {
+        Platform.get().log("error reporting {0}", context, e);
       }
-
-      zipkin2.Span.Builder builderWithContextData = zipkin2.Span.newBuilder()
-          .traceId(contextKey.traceIdHigh, contextKey.traceId)
-          .id(contextKey.spanId)
-          .localEndpoint(localEndpoint)
-          .addAnnotation(flushTime, "brave.flush");
-
-      MutableSpanConverter.convert(value.state, builderWithContextData);
-      reporter.report(builderWithContextData.build());
     }
   }
 
@@ -143,7 +131,7 @@ public final class PendingSpans extends ReferenceQueue<TraceContext> {
     final int hashCode;
 
     // Copy the identity fields from the trace context, so we can use them when the reference clears
-    final long traceIdHigh, traceId, spanId;
+    final long traceIdHigh, traceId, localRootId, spanId;
     final boolean sampled;
 
     RealKey(TraceContext context, ReferenceQueue<TraceContext> queue) {
@@ -151,6 +139,7 @@ public final class PendingSpans extends ReferenceQueue<TraceContext> {
       hashCode = context.hashCode();
       traceIdHigh = context.traceIdHigh();
       traceId = context.traceId();
+      localRootId = context.localRootId();
       spanId = context.spanId();
       sampled = Boolean.TRUE.equals(context.sampled());
     }
@@ -210,7 +199,7 @@ public final class PendingSpans extends ReferenceQueue<TraceContext> {
       h *= 1000003;
       h ^= (int) ((spanId >>> 32) ^ spanId);
       h *= 1000003;
-      h ^= shared ? TraceContexts.FLAG_SHARED : 0; // to match TraceContext.hashCode
+      h ^= shared ? InternalPropagation.FLAG_SHARED : 0; // to match TraceContext.hashCode
       return h;
     }
 
@@ -226,32 +215,7 @@ public final class PendingSpans extends ReferenceQueue<TraceContext> {
     }
   }
 
-  /** Exposes which spans are in-flight, mostly for testing. */
-  public List<Span> snapshot() {
-    List<zipkin2.Span> result = new ArrayList<>();
-    zipkin2.Span.Builder spanBuilder = zipkin2.Span.newBuilder();
-    for (Map.Entry<Object, PendingSpan> entry : delegate.entrySet()) {
-      PendingSpans.RealKey contextKey = (PendingSpans.RealKey) entry.getKey();
-      spanBuilder.clear().traceId(contextKey.traceIdHigh, contextKey.traceId).id(contextKey.spanId);
-      MutableSpanConverter.convert(entry.getValue().state, spanBuilder);
-      result.add(spanBuilder.build());
-      spanBuilder.clear();
-    }
-    return result;
-  }
-
   @Override public String toString() {
     return "PendingSpans" + delegate.keySet();
-  }
-
-  static final ThreadLocal<LookupKey> LOOKUP_KEY = new ThreadLocal<>();
-
-  static LookupKey getLookupKey() {
-    LookupKey lookupKey = LOOKUP_KEY.get();
-    if (lookupKey == null) {
-      lookupKey = new LookupKey();
-      LOOKUP_KEY.set(lookupKey);
-    }
-    return lookupKey;
   }
 }

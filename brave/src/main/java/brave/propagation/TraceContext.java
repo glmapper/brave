@@ -1,18 +1,22 @@
 package brave.propagation;
 
+import brave.Span;
+import brave.internal.InternalPropagation;
 import brave.internal.Nullable;
-import brave.internal.TraceContexts;
+import brave.internal.Platform;
+import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import static brave.internal.HexCodec.lenientLowerHexToUnsignedLong;
+import static brave.internal.HexCodec.toLowerHex;
 import static brave.internal.HexCodec.writeHexLong;
+import static brave.internal.InternalPropagation.FLAG_LOCAL_ROOT;
+import static brave.internal.InternalPropagation.FLAG_SAMPLED;
+import static brave.internal.InternalPropagation.FLAG_SAMPLED_LOCAL;
+import static brave.internal.InternalPropagation.FLAG_SAMPLED_SET;
+import static brave.internal.InternalPropagation.FLAG_SHARED;
 import static brave.internal.Lists.ensureImmutable;
-import static brave.internal.TraceContexts.FLAG_SAMPLED;
-import static brave.internal.TraceContexts.FLAG_SAMPLED_SET;
-import static brave.internal.TraceContexts.FLAG_SHARED;
 
 /**
  * Contains trace identifiers and sampling data propagated in and out-of-process.
@@ -25,8 +29,6 @@ import static brave.internal.TraceContexts.FLAG_SHARED;
  */
 //@Immutable
 public final class TraceContext extends SamplingFlags {
-  static final Logger LOG = Logger.getLogger(TraceContext.class.getName());
-
   /**
    * Used to send the trace context downstream. For example, as http headers.
    *
@@ -78,6 +80,32 @@ public final class TraceContext extends SamplingFlags {
   /** Unique 8-byte identifier for a trace, set on all spans within it. */
   public long traceId() {
     return traceId;
+  }
+
+  /**
+   * Returns the first {@link #spanId()} in a partition of a trace: otherwise known as an entry
+   * span. This could be a root span or a span representing incoming work (ex {@link
+   * Span.Kind#SERVER} or {@link Span.Kind#CONSUMER}. Unlike {@link #parentIdAsLong()}, this value
+   * is inherited to child contexts until the trace exits the process. This value is inherited for
+   * all child spans until the trace exits the process. This could also be described as an entry
+   * span.
+   *
+   * <p>When {@link #isLocalRoot()}, this ID will be the same as the {@link #spanId() span ID}.
+   *
+   * <p>The local root ID can be used for dependency link processing, skipping data or partitioning
+   * purposes. For example, one processor could skip all intermediate (local) spans between an
+   * incoming service call and any outgoing ones.
+   *
+   * <p>This does not group together multiple points of entry in the same trace. For example,
+   * repetitive consumption of the same incoming message results in different local roots.
+   */
+  // This is the first span ID that became a Span or ScopedSpan
+  public long localRootId() {
+    return localRootId;
+  }
+
+  public boolean isLocalRoot() {
+    return (flags & FLAG_LOCAL_ROOT) == FLAG_LOCAL_ROOT;
   }
 
   /**
@@ -150,22 +178,60 @@ public final class TraceContext extends SamplingFlags {
     return new Builder(this);
   }
 
+  volatile String traceIdString; // Lazily initialized and cached.
+
   /** Returns the hex representation of the span's trace ID */
   public String traceIdString() {
-    if (traceIdHigh != 0) {
-      char[] result = new char[32];
-      writeHexLong(result, 0, traceIdHigh);
-      writeHexLong(result, 16, traceId);
-      return new String(result);
+    String r = traceIdString;
+    if (r == null) {
+      if (traceIdHigh != 0) {
+        char[] result = new char[32];
+        writeHexLong(result, 0, traceIdHigh);
+        writeHexLong(result, 16, traceId);
+        r = new String(result);
+      } else {
+        r = toLowerHex(traceId);
+      }
+      traceIdString = r;
     }
-    char[] result = new char[16];
-    writeHexLong(result, 0, traceId);
-    return new String(result);
+    return r;
+  }
+
+  volatile String parentIdString; // Lazily initialized and cached.
+
+  /** Returns the hex representation of the span's parent ID */
+  @Nullable public String parentIdString() {
+    String r = parentIdString;
+    if (r == null && parentId != 0L) {
+      r = parentIdString = toLowerHex(parentId);
+    }
+    return r;
+  }
+
+  volatile String localRootIdString; // Lazily initialized and cached.
+
+  /** Returns the hex representation of the span's local root ID */
+  @Nullable public String localRootIdString() {
+    String r = localRootIdString;
+    if (r == null && localRootId != 0L) {
+      r = localRootIdString = toLowerHex(localRootId);
+    }
+    return r;
+  }
+
+  volatile String spanIdString; // Lazily initialized and cached.
+
+  /** Returns the hex representation of the span's ID */
+  public String spanIdString() {
+    String r = spanIdString;
+    if (r == null) {
+      r = spanIdString = toLowerHex(spanId);
+    }
+    return r;
   }
 
   /** Returns {@code $traceId/$spanId} */
-  @Override
-  public String toString() {
+  @Override public String toString() {
     boolean traceHi = traceIdHigh != 0;
     char[] result = new char[((traceHi ? 3 : 2) * 16) + 1]; // 2 ids and the delimiter
     int pos = 0;
@@ -182,12 +248,14 @@ public final class TraceContext extends SamplingFlags {
 
   public static final class Builder {
     long traceIdHigh, traceId, parentId, spanId;
+    long localRootId; // intentionally only mutable by the copy constructor to control usage.
     int flags;
     List<Object> extra = Collections.emptyList();
 
     Builder(TraceContext context) { // no external implementations
       traceIdHigh = context.traceIdHigh;
       traceId = context.traceId;
+      localRootId = context.localRootId;
       parentId = context.parentId;
       spanId = context.spanId;
       flags = context.flags;
@@ -225,9 +293,19 @@ public final class TraceContext extends SamplingFlags {
       return this;
     }
 
+    /** @see TraceContext#sampledLocal() */
+    public Builder sampledLocal(boolean sampledLocal) {
+      if (sampledLocal) {
+        flags |= FLAG_SAMPLED_LOCAL;
+      } else {
+        flags &= ~FLAG_SAMPLED_LOCAL;
+      }
+      return this;
+    }
+
     /** @see TraceContext#sampled() */
     public Builder sampled(boolean sampled) {
-      flags = TraceContexts.sampled(sampled, flags);
+      flags = InternalPropagation.sampled(sampled, flags);
       return this;
     }
 
@@ -298,7 +376,7 @@ public final class TraceContext extends SamplingFlags {
       if (traceIdIndex > 0) {
         traceIdHigh = lenientLowerHexToUnsignedLong(traceIdString, 0, traceIdIndex);
         if (traceIdHigh == 0) {
-          maybeLogNotLowerHex(key, traceIdString);
+          maybeLogNotLowerHex(traceIdString);
           return false;
         }
       }
@@ -306,7 +384,7 @@ public final class TraceContext extends SamplingFlags {
       // right-most up to 16 characters are the low bits
       traceId = lenientLowerHexToUnsignedLong(traceIdString, traceIdIndex, length);
       if (traceId == 0) {
-        maybeLogNotLowerHex(key, traceIdString);
+        maybeLogNotLowerHex(traceIdString);
         return false;
       }
       return true;
@@ -321,7 +399,7 @@ public final class TraceContext extends SamplingFlags {
 
       parentId = lenientLowerHexToUnsignedLong(parentIdString, 0, length);
       if (parentId != 0) return true;
-      maybeLogNotLowerHex(key, parentIdString);
+      maybeLogNotLowerHex(parentIdString);
       return false;
     }
 
@@ -334,7 +412,7 @@ public final class TraceContext extends SamplingFlags {
 
       spanId = lenientLowerHexToUnsignedLong(spanIdString, 0, length);
       if (spanId == 0) {
-        maybeLogNotLowerHex(key, spanIdString);
+        maybeLogNotLowerHex(spanIdString);
         return false;
       }
       return true;
@@ -342,22 +420,23 @@ public final class TraceContext extends SamplingFlags {
 
     boolean invalidIdLength(Object key, int length, int max) {
       if (length > 1 && length <= max) return false;
-      if (LOG.isLoggable(Level.FINE)) {
-        LOG.fine(key + " should be a 1 to " + max + " character lower-hex string with no prefix");
-      }
+
+      assert max == 32 || max == 16;
+      Platform.get().log(max == 32
+          ? "{0} should be a 1 to 32 character lower-hex string with no prefix"
+          : "{0} should be a 1 to 16 character lower-hex string with no prefix", key, null);
+
       return true;
     }
 
     boolean isNull(Object key, String maybeNull) {
       if (maybeNull != null) return false;
-      if (LOG.isLoggable(Level.FINE)) LOG.fine(key + " was null");
+      Platform.get().log("{0} was null", key, null);
       return true;
     }
 
-    void maybeLogNotLowerHex(Object key, String notLowerHex) {
-      if (LOG.isLoggable(Level.FINE)) {
-        LOG.fine(key + ": " + notLowerHex + " is not a lower-hex string");
-      }
+    void maybeLogNotLowerHex(String notLowerHex) {
+      Platform.get().log("{0} is not a lower-hex string", notLowerHex, null);
     }
 
     public final TraceContext build() {
@@ -366,7 +445,7 @@ public final class TraceContext extends SamplingFlags {
       if (spanId == 0L) missing += " spanId";
       if (!"".equals(missing)) throw new IllegalStateException("Missing: " + missing);
       return new TraceContext(
-          flags, traceIdHigh, traceId, parentId, spanId, ensureImmutable(extra)
+          flags, traceIdHigh, traceId, localRootId, parentId, spanId, ensureImmutable(extra)
       );
     }
 
@@ -374,13 +453,22 @@ public final class TraceContext extends SamplingFlags {
     }
   }
 
-  final long traceIdHigh, traceId, parentId, spanId;
+  TraceContext withExtra(List<Object> extra) {
+    return new TraceContext(flags, traceIdHigh, traceId, localRootId, parentId, spanId, extra);
+  }
+
+  TraceContext withFlags(int flags) {
+    return new TraceContext(flags, traceIdHigh, traceId, localRootId, parentId, spanId, extra);
+  }
+
+  final long traceIdHigh, traceId, localRootId, parentId, spanId;
   final List<Object> extra;
 
   TraceContext(
       int flags,
       long traceIdHigh,
       long traceId,
+      long localRootId,
       long parentId,
       long spanId,
       List<Object> extra
@@ -388,6 +476,7 @@ public final class TraceContext extends SamplingFlags {
     super(flags);
     this.traceIdHigh = traceIdHigh;
     this.traceId = traceId;
+    this.localRootId = localRootId;
     this.parentId = parentId;
     this.spanId = spanId;
     this.extra = extra;
@@ -401,6 +490,8 @@ public final class TraceContext extends SamplingFlags {
    */
   @Override public boolean equals(Object o) {
     if (o == this) return true;
+    // Hack that allows PendingSpans to lookup without allocating a new object.
+    if (o instanceof WeakReference) o = ((WeakReference) o).get();
     if (!(o instanceof TraceContext)) return false;
     TraceContext that = (TraceContext) o;
     return (traceIdHigh == that.traceIdHigh)
@@ -408,6 +499,8 @@ public final class TraceContext extends SamplingFlags {
         && (spanId == that.spanId)
         && ((flags & FLAG_SHARED) == (that.flags & FLAG_SHARED));
   }
+
+  volatile int hashCode; // Lazily initialized and cached.
 
   /**
    * Includes mandatory fields {@link #traceIdHigh()}, {@link #traceId()}, {@link #spanId()} and the
@@ -418,15 +511,18 @@ public final class TraceContext extends SamplingFlags {
    * side.
    */
   @Override public int hashCode() {
-    int h = 1;
-    h *= 1000003;
-    h ^= (int) ((traceIdHigh >>> 32) ^ traceIdHigh);
-    h *= 1000003;
-    h ^= (int) ((traceId >>> 32) ^ traceId);
-    h *= 1000003;
-    h ^= (int) ((spanId >>> 32) ^ spanId);
-    h *= 1000003;
-    h ^= flags & FLAG_SHARED;
+    int h = hashCode;
+    if (h == 0) {
+      h = 1000003;
+      h ^= (int) ((traceIdHigh >>> 32) ^ traceIdHigh);
+      h *= 1000003;
+      h ^= (int) ((traceId >>> 32) ^ traceId);
+      h *= 1000003;
+      h ^= (int) ((spanId >>> 32) ^ spanId);
+      h *= 1000003;
+      h ^= flags & FLAG_SHARED;
+      hashCode = h;
+    }
     return h;
   }
 

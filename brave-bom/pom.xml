@@ -3,7 +3,7 @@
 
   <groupId>io.zipkin.brave</groupId>
   <artifactId>brave-bom</artifactId>
-  <version>5.2.1-SNAPSHOT</version>
+  <version>5.6.2-SNAPSHOT</version>
   <name>Brave BOM</name>
   <description>Bill Of Materials POM for all Brave artifacts</description>
   <packaging>pom</packaging>
@@ -13,8 +13,8 @@
     <main.basedir>${project.basedir}/../..</main.basedir>
 
     <!-- use the same values in ../pom.xml -->
-    <zipkin.version>2.10.4</zipkin.version>
-    <zipkin-reporter.version>2.7.7</zipkin-reporter.version>
+    <zipkin.version>2.12.0</zipkin.version>
+    <zipkin-reporter.version>2.7.14</zipkin-reporter.version>
   </properties>
 
   <organization>
@@ -93,6 +93,11 @@
       </dependency>
       <dependency>
         <groupId>${project.groupId}</groupId>
+        <artifactId>brave-context-jfr</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
         <artifactId>brave-context-log4j2</artifactId>
         <version>${project.version}</version>
       </dependency>
@@ -153,7 +158,17 @@
       </dependency>
       <dependency>
         <groupId>${project.groupId}</groupId>
+        <artifactId>brave-instrumentation-jms</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
         <artifactId>brave-instrumentation-kafka-clients</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>brave-instrumentation-kafka-streams</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

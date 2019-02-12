@@ -1,18 +1,24 @@
 package brave;
 
+import brave.handler.FinishedSpanHandler;
 import brave.internal.IpLiteral;
 import brave.internal.Nullable;
 import brave.internal.Platform;
+import brave.internal.handler.FinishedSpanHandlers;
+import brave.internal.handler.ZipkinFinishedSpanHandler;
 import brave.internal.recorder.PendingSpans;
-import brave.internal.recorder.SpanReporter;
 import brave.propagation.B3Propagation;
 import brave.propagation.CurrentTraceContext;
 import brave.propagation.Propagation;
 import brave.propagation.TraceContext;
 import brave.sampler.Sampler;
 import java.io.Closeable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import zipkin2.reporter.AsyncReporter;
 import zipkin2.reporter.Reporter;
 import zipkin2.reporter.Sender;
@@ -88,17 +94,13 @@ public abstract class Tracing implements Closeable {
     return tracing != null ? tracing.tracer() : null;
   }
 
-  final AtomicBoolean noop = new AtomicBoolean(false);
-
   /**
    * When true, no recording is done and nothing is reported to zipkin. However, trace context is
    * still injected into outgoing requests.
    *
    * @see Span#isNoop()
    */
-  public boolean isNoop() {
-    return noop.get();
-  }
+  public abstract boolean isNoop();
 
   /**
    * Set true to drop data and only return {@link Span#isNoop() noop spans} regardless of sampling
@@ -106,9 +108,7 @@ public abstract class Tracing implements Closeable {
    *
    * @see #isNoop()
    */
-  public void setNoop(boolean noop) {
-    this.noop.set(noop);
-  }
+  public abstract void setNoop(boolean noop);
 
   /**
    * Returns the most recently created tracing component iff it hasn't been closed. null otherwise.
@@ -125,14 +125,14 @@ public abstract class Tracing implements Closeable {
   public static final class Builder {
     String localServiceName = "unknown", localIp;
     int localPort; // zero means null
-    Reporter<zipkin2.Span> reporter;
+    Reporter<zipkin2.Span> spanReporter;
     Clock clock;
     Sampler sampler = Sampler.ALWAYS_SAMPLE;
     CurrentTraceContext currentTraceContext = CurrentTraceContext.Default.inheritable();
-    boolean traceId128Bit = false;
-    boolean supportsJoin = true;
+    boolean traceId128Bit = false, supportsJoin = true;
     Propagation.Factory propagationFactory = B3Propagation.FACTORY;
     ErrorParser errorParser = new ErrorParser();
+    List<FinishedSpanHandler> finishedSpanHandlers = new ArrayList<>();
 
     /**
      * Lower-case label of the remote node in the service graph, such as "favstar". Avoid names with
@@ -211,9 +211,9 @@ public abstract class Tracing implements Closeable {
      *
      * <p>See https://github.com/openzipkin/zipkin-reporter-java
      */
-    public Builder spanReporter(Reporter<zipkin2.Span> reporter) {
-      if (reporter == null) throw new NullPointerException("spanReporter == null");
-      this.reporter = reporter;
+    public Builder spanReporter(Reporter<zipkin2.Span> spanReporter) {
+      if (spanReporter == null) throw new NullPointerException("spanReporter == null");
+      this.spanReporter = spanReporter;
       return this;
     }
 
@@ -299,14 +299,55 @@ public abstract class Tracing implements Closeable {
       return this;
     }
 
+    /**
+     * Similar to {@link #spanReporter(Reporter)} except it can read the trace context and create
+     * more efficient or completely different data structures. Importantly, the input is mutable for
+     * customization purposes.
+     *
+     * <p>These handlers execute before the {@link #spanReporter(Reporter) span reporter}, which
+     * means any mutations occur prior to Zipkin.
+     *
+     * <h3>Advanced notes</h3>
+     *
+     * <p>This is named firehose as it can receive data even when spans are not sampled remotely.
+     * For example, {@link FinishedSpanHandler#alwaysSampleLocal()} will generate data for all traced
+     * requests while not affecting headers. This setting is often used for metrics aggregation.
+     *
+     *
+     * <p>Your handler can also be a custom span transport. When this is the case, set the {@link
+     * #spanReporter(Reporter) span reporter} to {@link Reporter#NOOP} to avoid redundant conversion
+     * overhead.
+     */
+    public Builder addFinishedSpanHandler(FinishedSpanHandler finishedSpanHandler) {
+      if (finishedSpanHandler == null) {
+        throw new NullPointerException("finishedSpanHandler == null");
+      }
+      this.finishedSpanHandlers.add(finishedSpanHandler);
+      return this;
+    }
+
     public Tracing build() {
       if (clock == null) clock = Platform.get().clock();
       if (localIp == null) localIp = Platform.get().linkLocalIp();
-      if (reporter == null) reporter = Platform.get().reporter();
+      if (spanReporter == null) spanReporter = new LoggingReporter();
       return new Default(this);
     }
 
     Builder() {
+    }
+  }
+
+  static final class LoggingReporter implements Reporter<zipkin2.Span> {
+    final Logger logger = Logger.getLogger(Tracer.class.getName());
+
+    @Override public void report(zipkin2.Span span) {
+      if (span == null) throw new NullPointerException("span == null");
+      if (!logger.isLoggable(Level.INFO)) return;
+      logger.info(span.toString());
+    }
+
+    @Override public String toString() {
+      return "LoggingReporter{name=" + logger.getName() + "}";
     }
   }
 
@@ -318,6 +359,7 @@ public abstract class Tracing implements Closeable {
     final Sampler sampler;
     final Clock clock;
     final ErrorParser errorParser;
+    final AtomicBoolean noop;
 
     Default(Builder builder) {
       this.clock = builder.clock;
@@ -326,22 +368,33 @@ public abstract class Tracing implements Closeable {
       this.stringPropagation = builder.propagationFactory.create(Propagation.KeyFactory.STRING);
       this.currentTraceContext = builder.currentTraceContext;
       this.sampler = builder.sampler;
-      zipkin2.Endpoint localEndpoint = zipkin2.Endpoint.newBuilder()
-          .serviceName(builder.localServiceName)
-          .ip(builder.localIp)
-          .port(builder.localPort)
-          .build();
-      SpanReporter reporter = new SpanReporter(localEndpoint, builder.reporter, noop);
+      this.noop = new AtomicBoolean();
+
+      List<FinishedSpanHandler> finishedSpanHandlers = builder.finishedSpanHandlers;
+
+      // If a Zipkin reporter is present, it is invoked after the user-supplied finished span handlers.
+      FinishedSpanHandler zipkinFirehose = FinishedSpanHandler.NOOP;
+      if (builder.spanReporter != Reporter.NOOP) {
+        zipkinFirehose = new ZipkinFinishedSpanHandler(builder.spanReporter, errorParser,
+            builder.localServiceName, builder.localIp, builder.localPort);
+        finishedSpanHandlers = new ArrayList<>(finishedSpanHandlers);
+        finishedSpanHandlers.add(zipkinFirehose);
+      }
+
+      // Compose the handlers into one which honors Tracing.noop
+      FinishedSpanHandler finishedSpanHandler =
+          FinishedSpanHandlers.noopAware(FinishedSpanHandlers.compose(finishedSpanHandlers), noop);
+
       this.tracer = new Tracer(
           builder.clock,
           builder.propagationFactory,
-          reporter,
-          new PendingSpans(localEndpoint, clock, reporter, noop),
+          finishedSpanHandler,
+          new PendingSpans(clock, zipkinFirehose, noop),
           builder.sampler,
-          builder.errorParser,
           builder.currentTraceContext,
           builder.traceId128Bit || propagationFactory.requires128BitTraceId(),
           builder.supportsJoin && propagationFactory.supportsJoin(),
+          finishedSpanHandler.alwaysSampleLocal(),
           noop
       );
       maybeSetCurrent();
@@ -369,6 +422,14 @@ public abstract class Tracing implements Closeable {
 
     @Override public ErrorParser errorParser() {
       return errorParser;
+    }
+
+    @Override public boolean isNoop() {
+      return noop.get();
+    }
+
+    @Override public void setNoop(boolean noop) {
+      this.noop.set(noop);
     }
 
     private void maybeSetCurrent() {

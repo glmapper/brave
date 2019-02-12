@@ -3,8 +3,8 @@ package brave.propagation;
 import java.util.Collections;
 import org.junit.Test;
 
-import static brave.internal.TraceContexts.FLAG_SAMPLED;
-import static brave.internal.TraceContexts.FLAG_SAMPLED_SET;
+import static brave.internal.InternalPropagation.FLAG_SAMPLED;
+import static brave.internal.InternalPropagation.FLAG_SAMPLED_SET;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class TraceContextOrSamplingFlagsTest {
@@ -135,6 +135,31 @@ public class TraceContextOrSamplingFlagsTest {
 
     assertThat(TraceContextOrSamplingFlags.EMPTY.sampled(false).value.flags)
         .isEqualTo(FLAG_SAMPLED_SET);
+  }
+
+  @Test public void sampledLocal() {
+    assertThat(TraceContextOrSamplingFlags.create(base).sampledLocal())
+        .isFalse();
+    assertThat(new TraceContextOrSamplingFlags.Builder().context(base).sampledLocal().build().sampledLocal())
+        .isTrue();
+
+    TraceIdContext idContext = TraceIdContext.newBuilder().traceId(333L).build();
+    assertThat(TraceContextOrSamplingFlags.create(idContext).sampledLocal())
+        .isFalse();
+    assertThat(new TraceContextOrSamplingFlags.Builder().traceIdContext(idContext).sampledLocal().build().sampledLocal())
+        .isTrue();
+
+    assertThat(new TraceContextOrSamplingFlags.Builder().samplingFlags(SamplingFlags.SAMPLED).sampledLocal().build().sampledLocal())
+        .isTrue();
+
+    assertThat(TraceContextOrSamplingFlags.EMPTY.sampledLocal())
+        .isFalse();
+    assertThat(TraceContextOrSamplingFlags.SAMPLED.sampledLocal())
+        .isFalse();
+    assertThat(TraceContextOrSamplingFlags.NOT_SAMPLED.sampledLocal())
+        .isFalse();
+    assertThat(TraceContextOrSamplingFlags.DEBUG.sampledLocal())
+        .isFalse();
   }
 
   @Test public void sampled_true_noop() {

@@ -243,6 +243,14 @@ By default, there's a global sampler that applies a single rate to all
 traced operations. `Tracing.Builder.sampler` is how you indicate this,
 and it defaults to trace every request.
 
+For example, to choose 10 traces every second, you'd initialize like so:
+```java
+tracing = Tracing.newBuilder()
+                 .sampler(RateLimitingSampler.create(10))
+--snip--
+                 .build();
+```
+
 ### Declarative sampling
 
 Some need to sample based on the type or annotations of a java method.
@@ -478,6 +486,68 @@ headers) to injection (ex writing outgoing headers). For example, it might carry
 implementations have extra data, here's how they handle it.
 * If a `TraceContext` was extracted, add the extra data as `TraceContext.extra()`
 * Otherwise, add it as `TraceContextOrSamplingFlags.extra()`, which `Tracer.nextSpan` handles.
+
+## Handling Finished Spans
+By default, data recorded before (`Span.finish()`) are reported to Zipkin
+via what's passed to `Tracing.Builder.spanReporter`. `FinishedSpanHandler`
+can modify or drop data before it goes to Zipkin. It can even intercept
+data that is not sampled for Zipkin.
+
+`FinishedSpanHandler` can return false to drop spans that you never want
+to see in Zipkin. This should be used carefully as the spans dropped
+should not have children.
+
+Here's an example of SQL COMMENT spans so they don't clutter Zipkin.
+```java
+tracingBuilder.addFinishedSpanHandler(new FinishedSpanHandler() {
+  @Override public boolean handle(TraceContext context, MutableSpan span) {
+    return !"comment".equals(span.name());
+  }
+});
+```
+
+Another example is redaction: you may need to scrub tags to ensure no
+personal information like social security numbers end up in Zipkin.
+```java
+tracingBuilder.addFinishedSpanHandler(new FinishedSpanHandler() {
+  @Override public boolean handle(TraceContext context, MutableSpan span) {
+    span.forEachTag((key, value) ->
+      value.replaceAll("[0-9]{3}\\-[0-9]{2}\\-[0-9]{4}", "xxx-xx-xxxx")
+    );
+    return true; // retain the span
+  }
+});
+```
+An example of redaction is [here](src/test/java/brave/features/handler/RedactingFinishedSpanHandlerTest.java)
+
+### Sampling locally
+While Brave defaults to report 100% of data to Zipkin, many will use a
+lower percentage like 1%. This is called sampling and the decision is
+maintained throughout the trace, across requests consistently. Sampling
+has disadvantages. For example, statistics on sampled data is usually
+misleading by nature of not observing all durations.
+
+`FinishedSpanHandler` returns `alwaysSampleLocal()` to indicate whether
+it should see all data, or just all data sent to Zipkin. You can override
+this to true to observe all operations.
+
+Here's an example of metrics handling:
+```java
+tracingBuilder.addFinishedSpanHandler(new FinishedSpanHandler() {
+  @Override public boolean alwaysSampleLocal() {
+    return true; // since we want to always see timestamps, we have to always record
+  }
+
+  @Override public boolean handle(TraceContext context, MutableSpan span) {
+    if (namesToAlwaysTime.contains(span.name())) {
+      registry.timer("spans", "name", span.name())
+          .record(span.finishTimestamp() - span.startTimestamp(), MICROSECONDS);
+    }
+    return true; // retain the span
+  }
+});
+```
+An example of metrics handling is [here](src/test/java/brave/features/handler/MetricsFinishedSpanHandler.java)
 
 ## Current Tracing Component
 Brave supports a "current tracing component" concept which should only
@@ -890,6 +960,47 @@ Propagating a trace context instead of a span is a right fit for several reasons
 * Common tasks like making child spans and staining log context only need the context
 * Brave's recorder is keyed on context, so there's no feature loss in this choice
 
+### Local Sampling flag
+The [Census](https://opencensus.io/) project has a concept of a[SampledSpanStore](https://github.com/census-instrumentation/opencensus-java/blob/master/api/src/main/java/io/opencensus/trace/export/SampledSpanStore.java).
+Typically, you configure a span name pattern or choose [individual spans](https://github.com/census-instrumentation/opencensus-java/blob/660e8f375bb483a3eb817940b3aa8534f86da314/api/src/main/java/io/opencensus/trace/EndSpanOptions.java#L65)
+for local (in-process) storage. This storage is used to power
+administrative pages named zPages. For example, [Tracez](https://github.com/census-instrumentation/opencensus-java/blob/660e8f375bb483a3eb817940b3aa8534f86da314/contrib/zpages/src/main/java/io/opencensus/contrib/zpages/TracezZPageHandler.java#L220)
+displays spans sampled locally which have errors or crossed a latency
+threshold.
+
+The "sample local" vocab in Census was re-used in Brave to describe the
+act of keeping data that isn't going to necessarily end up in Zipkin.
+
+The main difference in Brave is implementation. For example, the `sampledLocal`
+flag in Brave is a part of the TraceContext and so can be triggered when
+headers are parsed. This is needed to provide custom sampling mechanisms.
+Also, Brave has a small core library and doesn't package any specific
+storage abstraction, admin pages or latency processors. As such, we can't
+define specifically what sampled local means as Census' could. All it
+means is that `FinishedSpanHandler` will see data for that trace context.
+
+### FinishedSpanHandler Api
+Brave had for a long time re-used zipkin's Reporter library, which is
+like Census' SpanExporter in so far that they both allow pushing a specific
+format elsewhere, usually to a service. Brave's [FinishedSpanHandler](https://github.com/openzipkin/brave/blob/master/brave/src/main/java/brave/handler/FinishedSpanHandler.java)
+is a little more like Census' [SpanExporter.Handler](https://github.com/census-instrumentation/opencensus-java/blob/master/api/src/main/java/io/opencensus/trace/export/SpanExporter.java)
+in so far as the structure includes the trace context.. something we need
+access to in order to do things like advanced sampling.
+
+Where it differs is that the `MutableSpan` in Brave is.. well.. mutable,
+and this allows you to cheaply change data. Also, it isn't a struct based
+on a proto, so it can hold references to objects like `Exception`. This
+allows us to render data into different formats such as [Amazon's stack frames](https://docs.aws.amazon.com/xray/latest/devguide/xray-api-segmentdocuments.html)
+without having to guess what will be needed by parsing up front. As
+error parsing is deferred, overhead is less in cases where errors are not
+recorded (such as is the case on spans intentionally dropped).
+
 ### Public namespace
 Brave 4's public namespace is more defensive that the past, using a package
 accessor design from [OkHttp](https://github.com/square/okhttp).
+
+### Rate-limiting sampler
+`RateLimitingSampler` was made to allow Amazon X-Ray rules to be
+expressed in Brave. We considered their [Reservoir design](https://github.com/aws/aws-xray-sdk-java/blob/2.0.1/aws-xray-recorder-sdk-core/src/main/java/com/amazonaws/xray/strategy/sampling/reservoir/Reservoir.java).
+Our implementation differs as it removes a race condition and attempts
+to be more fair by distributing accept decisions every decisecond.

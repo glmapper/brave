@@ -4,9 +4,6 @@ import brave.propagation.B3SinglePropagation.B3SingleExtractor;
 import java.util.Collections;
 import java.util.List;
 
-import static brave.internal.HexCodec.toLowerHex;
-import static brave.propagation.B3SinglePropagation.LOWER_NAME;
-import static brave.propagation.B3SinglePropagation.UPPER_NAME;
 import static java.util.Arrays.asList;
 
 /**
@@ -49,19 +46,18 @@ public final class B3Propagation<K> implements Propagation<K> {
    * "1" implies sampled and is a request to override collection-tier sampling policy.
    */
   static final String FLAGS_NAME = "X-B3-Flags";
-  final K lowerKey, upperKey, traceIdKey, spanIdKey, parentSpanIdKey, sampledKey, debugKey;
+  final K b3Key, traceIdKey, spanIdKey, parentSpanIdKey, sampledKey, debugKey;
   final List<K> fields;
 
   B3Propagation(KeyFactory<K> keyFactory) {
-    this.lowerKey = keyFactory.create(LOWER_NAME);
-    this.upperKey = keyFactory.create(UPPER_NAME);
+    this.b3Key = keyFactory.create("b3");
     this.traceIdKey = keyFactory.create(TRACE_ID_NAME);
     this.spanIdKey = keyFactory.create(SPAN_ID_NAME);
     this.parentSpanIdKey = keyFactory.create(PARENT_SPAN_ID_NAME);
     this.sampledKey = keyFactory.create(SAMPLED_NAME);
     this.debugKey = keyFactory.create(FLAGS_NAME);
     this.fields = Collections.unmodifiableList(
-        asList(lowerKey, upperKey, traceIdKey, spanIdKey, parentSpanIdKey, sampledKey, debugKey)
+        asList(b3Key, traceIdKey, spanIdKey, parentSpanIdKey, sampledKey, debugKey)
     );
   }
 
@@ -85,10 +81,10 @@ public final class B3Propagation<K> implements Propagation<K> {
 
     @Override public void inject(TraceContext traceContext, C carrier) {
       setter.put(carrier, propagation.traceIdKey, traceContext.traceIdString());
-      setter.put(carrier, propagation.spanIdKey, toLowerHex(traceContext.spanId()));
-      long parentId = traceContext.parentIdAsLong();
-      if (parentId != 0L) {
-        setter.put(carrier, propagation.parentSpanIdKey, toLowerHex(parentId));
+      setter.put(carrier, propagation.spanIdKey, traceContext.spanIdString());
+      String parentId = traceContext.parentIdString();
+      if (parentId != null) {
+        setter.put(carrier, propagation.parentSpanIdKey, parentId);
       }
       if (traceContext.debug()) {
         setter.put(carrier, propagation.debugKey, "1");
@@ -110,8 +106,7 @@ public final class B3Propagation<K> implements Propagation<K> {
 
     B3Extractor(B3Propagation<K> propagation, Getter<C, K> getter) {
       this.propagation = propagation;
-      this.singleExtractor =
-          new B3SingleExtractor<>(propagation.lowerKey, propagation.upperKey, getter);
+      this.singleExtractor = new B3SingleExtractor<>(propagation.b3Key, getter);
       this.getter = getter;
     }
 

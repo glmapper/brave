@@ -79,12 +79,20 @@ public abstract class HttpServerBenchmarks {
     get("/unsampled");
   }
 
+  @Benchmark public void onlySampledLocalServer_get() throws Exception {
+    get("/onlysampledlocal");
+  }
+
   @Benchmark public void tracedServer_get() throws Exception {
     get("/traced");
   }
 
   @Benchmark public void tracedExtraServer_get() throws Exception {
     get("/tracedextra");
+  }
+
+  @Benchmark public void tracedCorrelatedServer_get() throws Exception {
+    get("/tracedcorrelated");
   }
 
   @Benchmark public void tracedExtraServer_get_request_id() throws Exception {

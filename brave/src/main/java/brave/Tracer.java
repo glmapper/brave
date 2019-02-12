@@ -1,14 +1,14 @@
 package brave;
 
+import brave.handler.FinishedSpanHandler;
+import brave.handler.MutableSpan;
 import brave.internal.InternalPropagation;
 import brave.internal.Nullable;
 import brave.internal.Platform;
-import brave.internal.TraceContexts;
-import brave.internal.recorder.MutableSpan;
 import brave.internal.recorder.PendingSpan;
 import brave.internal.recorder.PendingSpans;
-import brave.internal.recorder.SpanReporter;
 import brave.propagation.CurrentTraceContext;
+import brave.propagation.CurrentTraceContext.Scope;
 import brave.propagation.Propagation;
 import brave.propagation.SamplingFlags;
 import brave.propagation.TraceContext;
@@ -22,11 +22,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static brave.internal.InternalPropagation.FLAG_LOCAL_ROOT;
+import static brave.internal.InternalPropagation.FLAG_SAMPLED;
+import static brave.internal.InternalPropagation.FLAG_SAMPLED_LOCAL;
+import static brave.internal.InternalPropagation.FLAG_SAMPLED_SET;
+import static brave.internal.InternalPropagation.FLAG_SHARED;
 import static brave.internal.Lists.concatImmutableLists;
-import static brave.internal.TraceContexts.FLAG_SAMPLED;
-import static brave.internal.TraceContexts.FLAG_SAMPLED_SET;
-import static brave.internal.TraceContexts.FLAG_SHARED;
-import static brave.internal.TraceContexts.contextWithFlags;
 
 /**
  * Using a tracer, you can create a root span capturing the critical path of a request. Child spans
@@ -72,35 +73,34 @@ public class Tracer {
 
   final Clock clock;
   final Propagation.Factory propagationFactory;
-  final SpanReporter spanReporter; // for toString
+  final FinishedSpanHandler finishedSpanHandler;
   final PendingSpans pendingSpans;
   final Sampler sampler;
-  final ErrorParser errorParser;
   final CurrentTraceContext currentTraceContext;
-  final boolean traceId128Bit, supportsJoin;
+  final boolean traceId128Bit, supportsJoin, alwaysSampleLocal;
   final AtomicBoolean noop;
 
   Tracer(
       Clock clock,
       Propagation.Factory propagationFactory,
-      SpanReporter spanReporter,
+      FinishedSpanHandler finishedSpanHandler,
       PendingSpans pendingSpans,
       Sampler sampler,
-      ErrorParser errorParser,
       CurrentTraceContext currentTraceContext,
       boolean traceId128Bit,
       boolean supportsJoin,
+      boolean alwaysSampleLocal,
       AtomicBoolean noop
   ) {
     this.clock = clock;
     this.propagationFactory = propagationFactory;
-    this.spanReporter = spanReporter;
+    this.finishedSpanHandler = finishedSpanHandler;
     this.pendingSpans = pendingSpans;
     this.sampler = sampler;
-    this.errorParser = errorParser;
     this.currentTraceContext = currentTraceContext;
     this.traceId128Bit = traceId128Bit;
     this.supportsJoin = supportsJoin;
+    this.alwaysSampleLocal = alwaysSampleLocal;
     this.noop = noop;
   }
 
@@ -121,13 +121,13 @@ public class Tracer {
     return new Tracer(
         clock,
         propagationFactory,
-        spanReporter,
+        finishedSpanHandler,
         pendingSpans,
         sampler,
-        errorParser,
         currentTraceContext,
         traceId128Bit,
         supportsJoin,
+        alwaysSampleLocal,
         noop
     );
   }
@@ -172,15 +172,27 @@ public class Tracer {
     if (context == null) throw new NullPointerException("context == null");
     if (!supportsJoin) return newChild(context);
     int flags = InternalPropagation.instance.flags(context);
+    if (alwaysSampleLocal && (flags & FLAG_SAMPLED_LOCAL) != FLAG_SAMPLED_LOCAL) {
+      flags |= FLAG_SAMPLED_LOCAL;
+    }
     // If we are joining a trace, we are sharing IDs with the caller
     // If the sampled flag was left unset, we need to make the decision here
     if ((flags & FLAG_SAMPLED_SET) != FLAG_SAMPLED_SET) { // cheap check for not yet sampled
       // then the caller didn't contribute data
-      context = sampleContext(context, flags);
+      flags = InternalPropagation.sampled(sampler.isSampled(context.traceId()), flags);
     } else if ((flags & FLAG_SAMPLED) == FLAG_SAMPLED) {
       // we are recording and contributing to the same span ID
-      context = contextWithFlags(context, flags | FLAG_SHARED);
+      flags = flags | FLAG_SHARED;
     }
+    context = InternalPropagation.instance.newTraceContext(
+        flags | FLAG_LOCAL_ROOT,
+        context.traceIdHigh(),
+        context.traceId(),
+        context.spanId(), // local root
+        context.parentIdAsLong(),
+        context.spanId(),
+        context.extra()
+    );
     return _toSpan(propagationFactory.decorate(context));
   }
 
@@ -197,14 +209,21 @@ public class Tracer {
   }
 
   TraceContext newRootContext() {
-    return nextContext(0, 0L, 0L, 0L, Collections.emptyList());
+    return nextContext(FLAG_LOCAL_ROOT, 0L, 0L, 0L, 0L, Collections.emptyList());
   }
 
+  /**
+   * Called by methods which can accept externally supplied parent trace contexts: Ex. {@link
+   * #newChild(TraceContext)} and {@link #startScopedSpanWithParent(String, TraceContext)}. This
+   * implies the {@link TraceContext#localRootId()} could be zero, if the context was manually
+   * created.
+   */
   TraceContext nextContext(TraceContext parent) {
     return nextContext(
         InternalPropagation.instance.flags(parent),
         parent.traceIdHigh(),
         parent.traceId(),
+        parent.localRootId(),
         parent.spanId(),
         parent.extra()
     );
@@ -214,24 +233,31 @@ public class Tracer {
       int flags,
       long traceIdHigh,
       long traceId,
+      long localRootId,
       long parentId,
       List<Object> extra
   ) {
+    if (alwaysSampleLocal && (flags & FLAG_SAMPLED_LOCAL) != FLAG_SAMPLED_LOCAL) {
+      flags |= FLAG_SAMPLED_LOCAL;
+    }
     long nextId = nextId();
     if (traceId == 0L) { // make a new trace ID
       traceIdHigh = traceId128Bit ? Platform.get().nextTraceIdHigh() : 0L;
       traceId = nextId;
     } else { // child of an existing span. ensure the shared flag is unset
-      flags &= ~FLAG_SHARED;
+      flags &= ~(FLAG_SHARED | FLAG_LOCAL_ROOT);
     }
     long spanId = nextId;
     if ((flags & FLAG_SAMPLED_SET) != FLAG_SAMPLED_SET) { // cheap check for not yet sampled
-      flags = TraceContexts.sampled(sampler.isSampled(traceId), flags);
+      flags = InternalPropagation.sampled(sampler.isSampled(traceId), flags);
     }
+    // Zero when root or an externally managed context was passed to newChild or scopedWithParent
+    if (localRootId == 0L) localRootId = spanId;
     return propagationFactory.decorate(InternalPropagation.instance.newTraceContext(
         flags,
         traceIdHigh,
         traceId,
+        localRootId,
         parentId,
         spanId,
         extra
@@ -278,6 +304,7 @@ public class Tracer {
           traceIdContext.traceIdHigh(),
           traceIdContext.traceId(),
           0L,
+          0L,
           extracted.extra()
       ));
     }
@@ -287,24 +314,31 @@ public class Tracer {
 
     TraceContext implicitParent = currentTraceContext.get();
     int flags;
-    long traceIdHigh = 0L, traceId = 0L, spanId = 0L;
+    long traceIdHigh = 0L, traceId = 0L, localRootId = 0L, spanId = 0L;
     if (implicitParent != null) {
       // At this point, we didn't extract trace IDs, but do have a trace in progress. Since typical
       // trace sampling is up front, we retain the decision from the parent.
       flags = InternalPropagation.instance.flags(implicitParent);
       traceIdHigh = implicitParent.traceIdHigh();
       traceId = implicitParent.traceId();
+      localRootId = implicitParent.localRootId();
       spanId = implicitParent.spanId();
       extra = concatImmutableLists(extra, implicitParent.extra());
     } else {
       flags = InternalPropagation.instance.flags(samplingFlags);
     }
-    return _toSpan(nextContext(flags, traceIdHigh, traceId, spanId, extra));
+    return _toSpan(nextContext(flags, traceIdHigh, traceId, localRootId, spanId, extra));
   }
 
   /** Converts the context to a Span object after decorating it for propagation */
   public Span toSpan(TraceContext context) {
     if (context == null) throw new NullPointerException("context == null");
+    if (alwaysSampleLocal) {
+      int flags = InternalPropagation.instance.flags(context);
+      if ((flags & FLAG_SAMPLED_LOCAL) != FLAG_SAMPLED_LOCAL) {
+        context = InternalPropagation.instance.withFlags(context, flags | FLAG_SAMPLED_LOCAL);
+      }
+    }
     // decorating here addresses join, new traces or children and ad-hoc trace contexts
     return _toSpan(propagationFactory.decorate(context));
   }
@@ -313,13 +347,8 @@ public class Tracer {
     if (isNoop(decorated)) return new NoopSpan(decorated);
     // allocate a mutable span in case multiple threads call this method.. they'll use the same data
     PendingSpan pendingSpan = pendingSpans.getOrCreate(decorated, false);
-    return new RealSpan(decorated,
-        pendingSpans,
-        pendingSpan.state(),
-        pendingSpan.clock(),
-        spanReporter,
-        errorParser
-    );
+    return new RealSpan(decorated, pendingSpans, pendingSpan.state(), pendingSpan.clock(),
+        finishedSpanHandler);
   }
 
   /**
@@ -441,23 +470,22 @@ public class Tracer {
     if (parent == null) parent = currentTraceContext.get();
     TraceContext context = parent != null ? nextContext(parent) : newRootContext();
 
-    CurrentTraceContext.Scope scope = currentTraceContext.newScope(context);
+    Scope scope = currentTraceContext.newScope(context);
     if (isNoop(context)) return new NoopScopedSpan(context, scope);
 
     PendingSpan pendingSpan = pendingSpans.getOrCreate(context, true);
     Clock clock = pendingSpan.clock();
     MutableSpan state = pendingSpan.state();
     state.name(name);
-    return new RealScopedSpan(context, scope, state, clock, pendingSpans, spanReporter,
-        errorParser);
+    return new RealScopedSpan(context, scope, state, clock, pendingSpans, finishedSpanHandler);
   }
 
   /** A span remains in the scope it was bound to until close is called. */
   public static final class SpanInScope implements Closeable {
-    final CurrentTraceContext.Scope scope;
+    final Scope scope;
 
     // This type hides the SPI type and allows us to double-check the SPI didn't return null.
-    SpanInScope(CurrentTraceContext.Scope scope) {
+    SpanInScope(Scope scope) {
       if (scope == null) throw new NullPointerException("scope == null");
       this.scope = scope;
     }
@@ -474,17 +502,18 @@ public class Tracer {
 
   @Override public String toString() {
     TraceContext currentSpan = currentTraceContext.get();
-    List<zipkin2.Span> inFlight = pendingSpans.snapshot();
     return "Tracer{"
         + (currentSpan != null ? ("currentSpan=" + currentSpan + ", ") : "")
-        + (inFlight.size() > 0 ? ("inFlight=" + inFlight + ", ") : "")
         + (noop.get() ? "noop=true, " : "")
-        + "reporter=" + spanReporter
+        + "finishedSpanHandler=" + finishedSpanHandler
         + "}";
   }
 
   boolean isNoop(TraceContext context) {
-    return noop.get() || !Boolean.TRUE.equals(context.sampled());
+    if (finishedSpanHandler == FinishedSpanHandler.NOOP || noop.get()) return true;
+    int flags = InternalPropagation.instance.flags(context);
+    if ((flags & FLAG_SAMPLED_LOCAL) == FLAG_SAMPLED_LOCAL) return false;
+    return (flags & FLAG_SAMPLED) != FLAG_SAMPLED;
   }
 
   /** Generates a new 64-bit ID, taking care to dodge zero which can be confused with absent */
@@ -494,10 +523,5 @@ public class Tracer {
       nextId = Platform.get().randomLong();
     }
     return nextId;
-  }
-
-  TraceContext sampleContext(TraceContext context, int flags) {
-    flags = TraceContexts.sampled(sampler.isSampled(context.traceId()), flags);
-    return contextWithFlags(context, flags);
   }
 }
