@@ -7,8 +7,8 @@ import brave.propagation.ThreadLocalCurrentTraceContext;
 import com.github.charithe.kafka.EphemeralKafkaBroker;
 import com.github.charithe.kafka.KafkaJunitRule;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -98,6 +98,32 @@ public class ITKafkaStreamsTracing {
     Topology topology = builder.build();
 
     KafkaStreams streams = buildKafkaStreams(topology);
+
+    producer = createTracingProducer();
+    producer.send(new ProducerRecord<>(inputTopic, TEST_KEY, TEST_VALUE)).get();
+
+    waitForStreamToRun(streams);
+
+    Span span = takeSpan();
+
+    assertThat(span.tags()).containsEntry("kafka.topic", inputTopic);
+
+    streams.close();
+    streams.cleanUp();
+  }
+
+  @Test
+  public void should_create_span_from_stream_input_topic_using_kafka_client_supplier()
+      throws Exception {
+    String inputTopic = testName.getMethodName() + "-input";
+
+    StreamsBuilder builder = new StreamsBuilder();
+    builder.stream(inputTopic).foreach((k, v) -> {
+    });
+    Topology topology = builder.build();
+
+    KafkaStreams streams =
+        new KafkaStreams(topology, streamsProperties(), kafkaStreamsTracing.kafkaClientSupplier());
 
     producer = createTracingProducer();
     producer.send(new ProducerRecord<>(inputTopic, TEST_KEY, TEST_VALUE)).get();
@@ -373,6 +399,67 @@ public class ITKafkaStreamsTracing {
     assertThat(spanProcessor.traceId()).isEqualTo(spanOutput.traceId());
     assertThat(spanInput.tags()).containsEntry("kafka.topic", inputTopic);
     assertThat(spanOutput.tags()).containsEntry("kafka.topic", outputTopic);
+
+    streams.close();
+    streams.cleanUp();
+  }
+
+  @Test
+  public void should_create_spans_from_stream_without_tracing_with_tracing_flattransformer()
+      throws Exception {
+    TransformerSupplier<String, String, Iterable<KeyValue<String, String>>> transformerSupplier =
+        kafkaStreamsTracing.transformer(
+            "double-transformer-1",
+            new Transformer<String, String, Iterable<KeyValue<String, String>>>() {
+              ProcessorContext context;
+
+              @Override
+              public void init(ProcessorContext context) {
+                this.context = context;
+              }
+
+              @Override
+              public Iterable<KeyValue<String, String>> transform(String key, String value) {
+                try {
+                  Thread.sleep(100L);
+                } catch (InterruptedException e) {
+                  e.printStackTrace();
+                }
+                return Arrays.asList(KeyValue.pair(key, value), KeyValue.pair(key,value));
+              }
+
+              @Override
+              public void close() {
+              }
+            });
+
+    String inputTopic = testName.getMethodName() + "-input";
+    String outputTopic = testName.getMethodName() + "-output";
+
+    StreamsBuilder builder = new StreamsBuilder();
+    builder.stream(inputTopic, Consumed.with(Serdes.String(), Serdes.String()))
+        .flatTransform(transformerSupplier)
+        .to(outputTopic, Produced.with(Serdes.String(), Serdes.String()));
+    Topology topology = builder.build();
+
+    KafkaStreams streams = buildKafkaStreams(topology);
+
+    producer = createTracingProducer();
+    producer.send(new ProducerRecord<>(inputTopic, TEST_KEY, TEST_VALUE)).get();
+
+    waitForStreamToRun(streams);
+
+    Span inputSpan = takeSpan();
+    Span spanProcessor = takeSpan();
+    Span outputSpan1 = takeSpan();
+    Span outputSpan2 = takeSpan();
+
+    assertThat(inputSpan.parentId()).isNull();
+    assertThat(spanProcessor.tags().size()).isEqualTo(2);
+    assertThat(spanProcessor.tags()).containsKeys("kafka.streams.application.id", "kafka.streams.task.id");
+    assertThat(spanProcessor.traceId()).isEqualTo(inputSpan.traceId());
+    assertThat(outputSpan1.traceId()).isEqualTo(spanProcessor.traceId());
+    assertThat(outputSpan2.traceId()).isEqualTo(spanProcessor.traceId());
 
     streams.close();
     streams.cleanUp();
@@ -772,17 +859,11 @@ public class ITKafkaStreamsTracing {
   }
 
   KafkaStreams buildKafkaStreams(Topology topology) {
-    Properties properties = new Properties();
-    properties.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG,
-        kafka.helper().consumerConfig().getProperty(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG));
-    properties.put(StreamsConfig.STATE_DIR_CONFIG, "target/kafka-streams");
-    properties.put(StreamsConfig.APPLICATION_ID_CONFIG, testName.getMethodName());
-    properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
-        Topology.AutoOffsetReset.EARLIEST.name().toLowerCase());
+    Properties properties = streamsProperties();
     return kafkaStreamsTracing.kafkaStreams(topology, properties);
   }
 
-  KafkaStreams buildKafkaStreamsWithoutTracing(Topology topology) {
+  Properties streamsProperties() {
     Properties properties = new Properties();
     properties.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG,
         kafka.helper().consumerConfig().getProperty(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG));
@@ -790,6 +871,11 @@ public class ITKafkaStreamsTracing {
     properties.put(StreamsConfig.APPLICATION_ID_CONFIG, testName.getMethodName());
     properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
         Topology.AutoOffsetReset.EARLIEST.name().toLowerCase());
+    return properties;
+  }
+
+  KafkaStreams buildKafkaStreamsWithoutTracing(Topology topology) {
+    Properties properties = streamsProperties();
     return new KafkaStreams(topology, properties);
   }
 

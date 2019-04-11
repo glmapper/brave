@@ -3,7 +3,7 @@
   <parent>
     <groupId>io.zipkin.brave</groupId>
     <artifactId>brave-parent</artifactId>
-    <version>5.6.2-SNAPSHOT</version>
+    <version>5.6.4-SNAPSHOT</version>
   </parent>
 
   <artifactId>brave</artifactId>
@@ -84,7 +84,7 @@
     <dependency>
       <groupId>org.aspectj</groupId>
       <artifactId>aspectjweaver</artifactId>
-      <version>1.9.1</version>
+      <version>1.9.2</version>
       <scope>test</scope>
     </dependency>
     <dependency>
