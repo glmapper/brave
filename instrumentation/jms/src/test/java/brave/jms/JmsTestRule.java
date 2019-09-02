@@ -1,8 +1,23 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.jms;
 
+import javax.jms.BytesMessage;
 import javax.jms.Connection;
 import javax.jms.Destination;
 import javax.jms.JMSException;
+import javax.jms.Message;
 import javax.jms.Queue;
 import javax.jms.QueueConnection;
 import javax.jms.QueueSession;
@@ -12,7 +27,7 @@ import javax.jms.Topic;
 import javax.jms.TopicConnection;
 import javax.jms.TopicSession;
 import org.apache.activemq.ActiveMQConnectionFactory;
-import org.apache.activemq.command.ActiveMQTextMessage;
+import org.apache.activemq.command.ActiveMQMessage;
 import org.junit.rules.ExternalResource;
 import org.junit.rules.TestName;
 
@@ -41,8 +56,13 @@ public abstract class JmsTestRule extends ExternalResource {
     return queueSession.createTextMessage(text);
   }
 
-  abstract void setReadOnlyProperties(TextMessage message, boolean readOnlyProperties)
-      throws Exception;
+  BytesMessage newBytesMessage(String text) throws JMSException {
+    BytesMessage message = queueSession.createBytesMessage();
+    message.writeUTF(text);
+    return message;
+  }
+
+  abstract void setReadOnlyProperties(Message message, boolean readOnlyProperties) throws Exception;
 
   abstract Connection newConnection() throws Exception;
 
@@ -94,21 +114,21 @@ public abstract class JmsTestRule extends ExternalResource {
 
     @Override Connection newConnection() throws Exception {
       return new ActiveMQConnectionFactory("vm://localhost?broker.persistent=false")
-          .createConnection();
+        .createConnection();
     }
 
     @Override QueueConnection newQueueConnection() throws Exception {
       return new ActiveMQConnectionFactory("vm://localhost?broker.persistent=false")
-          .createQueueConnection();
+        .createQueueConnection();
     }
 
     @Override TopicConnection newTopicConnection() throws Exception {
       return new ActiveMQConnectionFactory("vm://localhost?broker.persistent=false")
-          .createTopicConnection();
+        .createTopicConnection();
     }
 
-    @Override void setReadOnlyProperties(TextMessage message, boolean readOnlyProperties) {
-      ((ActiveMQTextMessage) message).setReadOnlyProperties(readOnlyProperties);
+    @Override void setReadOnlyProperties(Message message, boolean readOnlyProperties) {
+      ((ActiveMQMessage) message).setReadOnlyProperties(readOnlyProperties);
     }
   }
 }

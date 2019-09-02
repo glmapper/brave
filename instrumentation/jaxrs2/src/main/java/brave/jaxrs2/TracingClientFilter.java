@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.jaxrs2;
 
 import brave.Span;
@@ -6,6 +19,7 @@ import brave.Tracer.SpanInScope;
 import brave.Tracing;
 import brave.http.HttpClientHandler;
 import brave.http.HttpTracing;
+import brave.internal.Nullable;
 import brave.propagation.Propagation.Setter;
 import brave.propagation.TraceContext;
 import javax.annotation.Priority;
@@ -42,16 +56,16 @@ public final class TracingClientFilter implements ClientRequestFilter, ClientRes
   }
 
   static final Setter<MultivaluedMap<String, Object>, String> SETTER =
-      new Setter<MultivaluedMap<String, Object>, String>() {
-        @Override
-        public void put(MultivaluedMap<String, Object> carrier, String key, String value) {
-          carrier.putSingle(key, value);
-        }
+    new Setter<MultivaluedMap<String, Object>, String>() {
+      @Override
+      public void put(MultivaluedMap<String, Object> carrier, String key, String value) {
+        carrier.putSingle(key, value);
+      }
 
-        @Override public String toString() {
-          return "MultivaluedMap::putSingle";
-        }
-      };
+      @Override public String toString() {
+        return "MultivaluedMap::putSingle";
+      }
+    };
 
   final Tracer tracer;
   final HttpClientHandler<ClientRequestContext, ClientResponseContext> handler;
@@ -79,7 +93,7 @@ public final class TracingClientFilter implements ClientRequestFilter, ClientRes
   }
 
   static final class HttpAdapter
-      extends brave.http.HttpClientAdapter<ClientRequestContext, ClientResponseContext> {
+    extends brave.http.HttpClientAdapter<ClientRequestContext, ClientResponseContext> {
 
     @Override public String method(ClientRequestContext request) {
       return request.getMethod();
@@ -97,12 +111,14 @@ public final class TracingClientFilter implements ClientRequestFilter, ClientRes
       return request.getHeaderString(name);
     }
 
-    @Override public Integer statusCode(ClientResponseContext response) {
-      return statusCodeAsInt(response);
+    @Override @Nullable public Integer statusCode(ClientResponseContext response) {
+      int result = statusCodeAsInt(response);
+      return result != 0 ? result : null;
     }
 
     @Override public int statusCodeAsInt(ClientResponseContext response) {
-      return response.getStatus();
+      int result = response.getStatus();
+      return result != -1 ? result : 0;
     }
   }
 }

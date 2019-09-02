@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.internal;
 
 import brave.ScopedSpan;
@@ -28,46 +41,46 @@ public abstract class ExtraFactoryTest<E, F extends ExtraFactory<E>> {
   };
 
   protected TraceContext context = propagationFactory.decorate(TraceContext.newBuilder()
-      .traceId(1L)
-      .spanId(2L)
-      .sampled(true)
-      .build());
+    .traceId(1L)
+    .spanId(2L)
+    .sampled(true)
+    .build());
 
   @Test public void decorate_empty() {
     assertThat(factory.decorate(contextWithExtra(context, asList(1L))).extra())
-        .containsExactly(1L, factory.create());
+      .containsExactly(1L, factory.create());
     assertThat(factory.decorate(contextWithExtra(context, asList(1L, 2L))).extra())
-        .containsExactly(1L, 2L, factory.create());
+      .containsExactly(1L, 2L, factory.create());
     assertThat(factory.decorate(contextWithExtra(context, asList(factory.create()))).extra())
-        .containsExactly(factory.create());
+      .containsExactly(factory.create());
     assertThat(factory.decorate(contextWithExtra(context, asList(factory.create(), 1L))).extra())
-        .containsExactly(factory.create(), 1L);
+      .containsExactly(factory.create(), 1L);
     assertThat(factory.decorate(contextWithExtra(context, asList(1L, factory.create()))).extra())
-        .containsExactly(1L, factory.create());
+      .containsExactly(1L, factory.create());
 
     E claimedBySelf = factory.create();
     factory.tryToClaim(claimedBySelf, context.traceId(), context.spanId());
     assertThat(factory.decorate(contextWithExtra(context, asList(claimedBySelf))).extra())
-        .containsExactly(factory.create());
+      .containsExactly(factory.create());
     assertThat(factory.decorate(contextWithExtra(context, asList(claimedBySelf, 1L))).extra())
-        .containsExactly(factory.create(), 1L);
+      .containsExactly(factory.create(), 1L);
     assertThat(factory.decorate(contextWithExtra(context, asList(1L, claimedBySelf))).extra())
-        .containsExactly(1L, factory.create());
+      .containsExactly(1L, factory.create());
 
     E claimedByOther = factory.create();
     factory.tryToClaim(claimedBySelf, 99L, 99L);
     assertThat(factory.decorate(contextWithExtra(context, asList(claimedByOther))).extra())
-        .containsExactly(factory.create());
+      .containsExactly(factory.create());
     assertThat(factory.decorate(contextWithExtra(context, asList(claimedByOther, 1L))).extra())
-        .containsExactly(factory.create(), 1L);
+      .containsExactly(factory.create(), 1L);
     assertThat(factory.decorate(contextWithExtra(context, asList(1L, claimedByOther))).extra())
-        .containsExactly(1L, factory.create());
+      .containsExactly(1L, factory.create());
   }
 
   @Test public void idempotent() {
     List<Object> originalExtra = context.extra();
     assertThat(propagationFactory.decorate(context).extra())
-        .isSameAs(originalExtra);
+      .isSameAs(originalExtra);
   }
 
   @Test public void toSpan_selfLinksContext() {

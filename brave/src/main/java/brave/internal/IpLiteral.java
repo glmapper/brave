@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.internal;
 
 /** Internal utility class to validate IPv4 or IPv6 literals */
@@ -77,10 +90,10 @@ public final class IpLiteral {
     int len = toExcluded - from;
     int i;
     return len <= 15 && len >= 7 &&
-        (i = ip.indexOf('.', from + 1)) > 0 && isValidIpV4Word(ip, from, i) &&
-        (i = ip.indexOf('.', from = i + 2)) > 0 && isValidIpV4Word(ip, from - 1, i) &&
-        (i = ip.indexOf('.', from = i + 2)) > 0 && isValidIpV4Word(ip, from - 1, i) &&
-        isValidIpV4Word(ip, i + 1, toExcluded);
+      (i = ip.indexOf('.', from + 1)) > 0 && isValidIpV4Word(ip, from, i) &&
+      (i = ip.indexOf('.', from = i + 2)) > 0 && isValidIpV4Word(ip, from - 1, i) &&
+      (i = ip.indexOf('.', from = i + 2)) > 0 && isValidIpV4Word(ip, from - 1, i) &&
+      isValidIpV4Word(ip, i + 1, toExcluded);
   }
 
   private static boolean isValidIpV4Word(CharSequence word, int from, int toExclusive) {
@@ -90,9 +103,9 @@ public final class IpLiteral {
     c0 = word.charAt(from);
     if (len == 3) {
       return (c1 = word.charAt(from + 1)) >= '0' &&
-          (c2 = word.charAt(from + 2)) >= '0' &&
-          ((c0 <= '1' && c1 <= '9' && c2 <= '9') ||
-              (c0 == '2' && c1 <= '5' && (c2 <= '5' || (c1 < '5' && c2 <= '9'))));
+        (c2 = word.charAt(from + 2)) >= '0' &&
+        ((c0 <= '1' && c1 <= '9' && c2 <= '9') ||
+          (c0 == '2' && c1 <= '5' && (c2 <= '5' || (c1 < '5' && c2 <= '9'))));
     }
     return c0 <= '9' && (len == 1 || isValidNumericChar(word.charAt(from + 1)));
   }

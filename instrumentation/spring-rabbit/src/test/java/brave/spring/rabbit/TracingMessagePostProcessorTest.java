@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.spring.rabbit;
 
 import brave.Tracing;
@@ -21,11 +34,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class TracingMessagePostProcessorTest {
   List<Span> spans = new ArrayList<>();
   Tracing tracing = Tracing.newBuilder()
-      .currentTraceContext(ThreadLocalCurrentTraceContext.create())
-      .spanReporter(spans::add)
-      .build();
+    .currentTraceContext(ThreadLocalCurrentTraceContext.create())
+    .spanReporter(spans::add)
+    .build();
   TracingMessagePostProcessor tracingMessagePostProcessor = new TracingMessagePostProcessor(
-      SpringRabbitTracing.newBuilder(tracing).remoteServiceName("my-exchange").build()
+    SpringRabbitTracing.newBuilder(tracing).remoteServiceName("my-exchange").build()
   );
 
   @After public void close() {
@@ -45,7 +58,7 @@ public class TracingMessagePostProcessorTest {
 
   @Test public void should_prefer_current_span() {
     TraceContext grandparent =
-        TraceContext.newBuilder().traceId(1L).spanId(1L).sampled(true).build();
+      TraceContext.newBuilder().traceId(1L).spanId(1L).sampled(true).build();
     TraceContext parent = grandparent.toBuilder().parentId(grandparent.spanId()).spanId(2L).build();
 
     // Will be either a bug, or a missing processor stage which can result in an old span in headers
@@ -73,7 +86,7 @@ public class TracingMessagePostProcessorTest {
 
   @Test public void should_add_b3_single_header_to_message() {
     TracingMessagePostProcessor tracingMessagePostProcessor = new TracingMessagePostProcessor(
-        SpringRabbitTracing.newBuilder(tracing).writeB3SingleFormat(true).build()
+      SpringRabbitTracing.newBuilder(tracing).writeB3SingleFormat(true).build()
     );
 
     Message message = MessageBuilder.withBody(new byte[0]).build();
@@ -82,7 +95,7 @@ public class TracingMessagePostProcessorTest {
     assertThat(postProcessMessage.getMessageProperties().getHeaders())
       .containsOnlyKeys("b3");
     assertThat(postProcessMessage.getMessageProperties().getHeaders().get("b3").toString())
-        .matches("^[0-9a-f]{16}-[0-9a-f]{16}-1$");
+      .matches("^[0-9a-f]{16}-[0-9a-f]{16}-1$");
   }
 
   @Test public void should_report_span() {
@@ -97,6 +110,6 @@ public class TracingMessagePostProcessorTest {
     tracingMessagePostProcessor.postProcessMessage(message);
 
     assertThat(spans.get(0).remoteServiceName())
-        .isEqualTo("my-exchange");
+      .isEqualTo("my-exchange");
   }
 }

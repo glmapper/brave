@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.servlet;
 
 import java.io.PrintWriter;
@@ -22,7 +35,7 @@ public class ServletRuntimeTest {
       }
     };
     assertThat(servlet25.status(jettyResponse))
-        .isNull();
+      .isZero();
   }
 
   @Test public void servlet25_status_doesntParseLocalTypes() throws Exception {
@@ -30,7 +43,7 @@ public class ServletRuntimeTest {
     class LocalResponse extends HttpServletResponseImpl {
     }
     assertThat(servlet25.status(new LocalResponse()))
-        .isNull();
+      .isZero();
   }
 
   class ExceptionResponse extends HttpServletResponseImpl {
@@ -41,7 +54,7 @@ public class ServletRuntimeTest {
 
   @Test public void servlet25_status_nullOnException() throws Exception {
     assertThat(servlet25.status(new ExceptionResponse()))
-        .isNull();
+      .isZero();
   }
 
   class Response1 extends HttpServletResponseImpl {
@@ -79,27 +92,27 @@ public class ServletRuntimeTest {
 
   @Test public void servlet25_status_cachesUpToTenTypes() throws Exception {
     assertThat(servlet25.status(new Response1()))
-        .isEqualTo(200);
+      .isEqualTo(200);
     assertThat(servlet25.status(new Response2()))
-        .isEqualTo(200);
+      .isEqualTo(200);
     assertThat(servlet25.status(new Response3()))
-        .isEqualTo(200);
+      .isEqualTo(200);
     assertThat(servlet25.status(new Response4()))
-        .isEqualTo(200);
+      .isEqualTo(200);
     assertThat(servlet25.status(new Response5()))
-        .isEqualTo(200);
+      .isEqualTo(200);
     assertThat(servlet25.status(new Response6()))
-        .isEqualTo(200);
+      .isEqualTo(200);
     assertThat(servlet25.status(new Response7()))
-        .isEqualTo(200);
+      .isEqualTo(200);
     assertThat(servlet25.status(new Response8()))
-        .isEqualTo(200);
+      .isEqualTo(200);
     assertThat(servlet25.status(new Response9()))
-        .isEqualTo(200);
+      .isEqualTo(200);
     assertThat(servlet25.status(new Response10()))
-        .isEqualTo(200);
+      .isEqualTo(200);
     assertThat(servlet25.status(new Response11()))
-        .isNull();
+      .isZero();
   }
 
   public static class HttpServletResponseImpl implements HttpServletResponse {

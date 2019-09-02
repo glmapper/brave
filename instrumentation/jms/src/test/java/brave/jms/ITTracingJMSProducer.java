@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.jms;
 
 import brave.ScopedSpan;
@@ -33,7 +46,7 @@ public class ITTracingJMSProducer extends JmsTest {
   @Before public void setup() {
     context = jms.newContext();
     tracedContext = jmsTracing.connectionFactory(jms.factory)
-        .createContext(JMSContext.AUTO_ACKNOWLEDGE);
+      .createContext(JMSContext.AUTO_ACKNOWLEDGE);
 
     producer = tracedContext.createProducer();
     existingProperties.forEach(producer::setProperty);
@@ -51,8 +64,8 @@ public class ITTracingJMSProducer extends JmsTest {
     Span producerSpan = takeSpan();
 
     assertThat(propertiesToMap(received))
-        .containsAllEntriesOf(existingProperties)
-        .containsEntry("b3", producerSpan.traceId() + "-" + producerSpan.id() + "-1");
+      .containsAllEntriesOf(existingProperties)
+      .containsEntry("b3", producerSpan.traceId() + "-" + producerSpan.id() + "-1");
   }
 
   @Test public void should_not_serialize_parent_span_id() throws Exception {
@@ -68,13 +81,13 @@ public class ITTracingJMSProducer extends JmsTest {
     assertThat(producerSpan.parentId()).isEqualTo(parentSpan.id());
 
     assertThat(propertiesToMap(received))
-        .containsAllEntriesOf(existingProperties)
-        .containsEntry("b3", producerSpan.traceId() + "-" + producerSpan.id() + "-1");
+      .containsAllEntriesOf(existingProperties)
+      .containsEntry("b3", producerSpan.traceId() + "-" + producerSpan.id() + "-1");
   }
 
   @Test public void should_prefer_current_to_stale_b3_header() throws Exception {
     producer.setProperty("b3",
-        writeB3SingleFormat(TraceContext.newBuilder().traceId(1).spanId(1).build()));
+      writeB3SingleFormat(TraceContext.newBuilder().traceId(1).spanId(1).build()));
 
     ScopedSpan parent = tracing.tracer().startScopedSpan("main");
     try {
@@ -88,8 +101,8 @@ public class ITTracingJMSProducer extends JmsTest {
     assertThat(producerSpan.parentId()).isEqualTo(parentSpan.id());
 
     assertThat(propertiesToMap(received))
-        .containsAllEntriesOf(existingProperties)
-        .containsEntry("b3", producerSpan.traceId() + "-" + producerSpan.id() + "-1");
+      .containsAllEntriesOf(existingProperties)
+      .containsEntry("b3", producerSpan.traceId() + "-" + producerSpan.id() + "-1");
   }
 
   @Test public void should_record_properties() throws Exception {

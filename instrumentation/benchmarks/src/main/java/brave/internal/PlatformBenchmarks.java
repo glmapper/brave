@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.internal;
 
 import brave.Clock;
@@ -23,8 +36,8 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 public class PlatformBenchmarks {
   static final Platform jre6 = new Platform.Jre6();
-  static final Platform jre7 = Platform.Jre7.buildIfSupported();
-  static final Platform jre9 = Platform.Jre9.buildIfSupported();
+  static final Platform jre7 = new Platform.Jre7();
+  static final Platform jre9 = new Platform.Jre9();
   static final Clock jre7Clock = jre7.clock();
   static final Clock jre9Clock = jre9.clock();
 
@@ -121,8 +134,8 @@ public class PlatformBenchmarks {
   // Convenience main entry-point
   public static void main(String[] args) throws RunnerException {
     Options opt = new OptionsBuilder()
-        .include(".*" + PlatformBenchmarks.class.getSimpleName() + ".*")
-        .build();
+      .include(".*" + PlatformBenchmarks.class.getSimpleName() + ".*")
+      .build();
 
     new Runner(opt).run();
   }

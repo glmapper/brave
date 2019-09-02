@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.jersey.server;
 
 import brave.SpanCustomizer;
@@ -16,15 +29,15 @@ import static org.glassfish.jersey.server.monitoring.RequestEvent.Type.FINISHED;
 import static org.glassfish.jersey.server.monitoring.RequestEvent.Type.REQUEST_MATCHED;
 
 /**
- * Adds application-tier data to an existing http span via {@link EventParser}.
- * This also sets the request property "http.route" so that it can be used in naming the http span.
+ * Adds application-tier data to an existing http span via {@link EventParser}. This also sets the
+ * request property "http.route" so that it can be used in naming the http span.
  *
  * <p>Use this instead of {@link TracingApplicationEventListener} when you start traces at the
  * servlet level via {@code brave.servlet.TracingFilter}.
  */
 @Provider
 public class SpanCustomizingApplicationEventListener
-    implements ApplicationEventListener, RequestEventListener {
+  implements ApplicationEventListener, RequestEventListener {
   public static SpanCustomizingApplicationEventListener create() {
     return new SpanCustomizingApplicationEventListener(new EventParser());
   }
@@ -36,6 +49,7 @@ public class SpanCustomizingApplicationEventListener
   final EventParser parser;
 
   @Inject SpanCustomizingApplicationEventListener(EventParser parser) {
+    if (parser == null) throw new NullPointerException("parser == null");
     this.parser = parser;
   }
 

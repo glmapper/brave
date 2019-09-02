@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.internal;
 
 import brave.Clock;
@@ -42,7 +55,6 @@ public abstract class Platform {
   String produceLinkLocalIp() {
     try {
       Enumeration<NetworkInterface> nics = NetworkInterface.getNetworkInterfaces();
-      if (nics == null) return null;
       while (nics.hasMoreElements()) {
         NetworkInterface nic = nics.nextElement();
         Enumeration<InetAddress> addresses = nic.getInetAddresses();
@@ -72,7 +84,7 @@ public abstract class Platform {
   public void log(String msg, Object param1, @Nullable Throwable thrown) {
     if (!LOG.isLoggable(Level.FINE)) return; // fine level to not fill logs
     LogRecord lr = new LogRecord(Level.FINE, msg);
-    Object params[] = {param1};
+    Object[] params = {param1};
     lr.setParameters(params);
     if (thrown != null) lr.setThrown(thrown);
     LOG.log(lr);
@@ -80,13 +92,24 @@ public abstract class Platform {
 
   /** Attempt to match the host runtime to a capable Platform implementation. */
   static Platform findPlatform() {
-    Platform jre9 = Jre9.buildIfSupported();
+    // Find JRE 9 new methods
+    try {
+      Class zoneId = Class.forName("java.time.ZoneId");
+      Class.forName("java.time.Clock").getMethod("tickMillis", zoneId);
+      return new Jre9(); // intentionally doesn't not access the type prior to the above guard
+    } catch (ClassNotFoundException e) {
+      // pre JRE 8
+    } catch (NoSuchMethodException e) {
+      // pre JRE 9
+    }
 
-    if (jre9 != null) return jre9;
-
-    Platform jre7 = Jre7.buildIfSupported();
-
-    if (jre7 != null) return jre7;
+    // Find JRE 7 new methods
+    try {
+      Class.forName("java.util.concurrent.ThreadLocalRandom");
+      return new Jre7(); // intentionally doesn't not access the type prior to the above guard
+    } catch (ClassNotFoundException e) {
+      // pre JRE 7
+    }
 
     // compatible with JRE 6
     return new Jre6();
@@ -102,7 +125,8 @@ public abstract class Platform {
   public abstract long randomLong();
 
   /**
-   * Returns the high 8-bytes for {@link brave.Tracing.Builder#traceId128Bit 128-bit trace IDs}.
+   * Returns the high 8-bytes for {@link brave.Tracing.Builder#traceId128Bit(boolean) 128-bit trace
+   * IDs}.
    *
    * <p>The upper 4-bytes are epoch seconds and the lower 4-bytes are random. This makes it
    * convertible to <a href="http://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-request-tracing.html"></a>Amazon
@@ -123,21 +147,6 @@ public abstract class Platform {
   }
 
   static class Jre9 extends Jre7 {
-
-    static Jre9 buildIfSupported() {
-      // Find JRE 9 new methods
-      try {
-        Class zoneId = Class.forName("java.time.ZoneId");
-        Class.forName("java.time.Clock").getMethod("tickMillis", zoneId);
-        return new Jre9();
-      } catch (ClassNotFoundException e) {
-        // pre JRE 8
-      } catch (NoSuchMethodException e) {
-        // pre JRE 9
-      }
-      return null;
-    }
-
     @IgnoreJRERequirement @Override public Clock clock() {
       return new Clock() {
         // we could use jdk.internal.misc.VM to do this more efficiently, but it is internal
@@ -158,18 +167,6 @@ public abstract class Platform {
   }
 
   static class Jre7 extends Platform {
-
-    static Jre7 buildIfSupported() {
-      // Find JRE 7 new methods
-      try {
-        Class.forName("java.util.concurrent.ThreadLocalRandom");
-        return new Jre7();
-      } catch (ClassNotFoundException e) {
-        // pre JRE 7
-      }
-      return null;
-    }
-
     @IgnoreJRERequirement @Override public String getHostString(InetSocketAddress socket) {
       return socket.getHostString();
     }
@@ -190,7 +187,7 @@ public abstract class Platform {
   static long nextTraceIdHigh(int random) {
     long epochSeconds = System.currentTimeMillis() / 1000;
     return (epochSeconds & 0xffffffffL) << 32
-        | (random & 0xffffffffL);
+      | (random & 0xffffffffL);
   }
 
   static class Jre6 extends Platform {

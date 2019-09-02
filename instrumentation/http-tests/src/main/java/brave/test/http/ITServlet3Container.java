@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.test.http;
 
 import brave.Tracing;
@@ -50,7 +63,7 @@ public abstract class ITServlet3Container extends ITServlet25Container {
   static class ForwardServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
-        throws ServletException, IOException {
+      throws ServletException, IOException {
       req.getServletContext().getRequestDispatcher("/foo").forward(req, resp);
     }
   }
@@ -69,15 +82,15 @@ public abstract class ITServlet3Container extends ITServlet25Container {
       AsyncContext ctx = req.startAsync();
       ctx.setTimeout(1);
       ctx.start(
-          () -> {
-            try {
-              Thread.sleep(10L);
-            } catch (InterruptedException e) {
-              Thread.currentThread().interrupt();
-            } finally {
-              ctx.complete();
-            }
-          });
+        () -> {
+          try {
+            Thread.sleep(10L);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+          } finally {
+            ctx.complete();
+          }
+        });
     }
   }
 

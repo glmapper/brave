@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.internal.handler;
 
 import brave.ErrorParser;
@@ -18,7 +31,7 @@ public final class MutableSpanConverter {
   final Endpoint localEndpoint;
 
   public MutableSpanConverter(ErrorParser errorParser, String localServiceName, String localIp,
-      int localPort) {
+    int localPort) {
     if (errorParser == null) throw new NullPointerException("errorParser == null");
     this.errorParser = errorParser;
     if (localServiceName == null) throw new NullPointerException("localServiceName == null");
@@ -26,7 +39,7 @@ public final class MutableSpanConverter {
     this.localIp = localIp;
     this.localPort = localPort;
     this.localEndpoint =
-        Endpoint.newBuilder().serviceName(localServiceName).ip(localIp).port(localPort).build();
+      Endpoint.newBuilder().serviceName(localServiceName).ip(localIp).port(localPort).build();
   }
 
   void convert(MutableSpan span, Span.Builder result) {
@@ -46,10 +59,10 @@ public final class MutableSpanConverter {
     String remoteServiceName = span.remoteServiceName(), remoteIp = span.remoteIp();
     if (remoteServiceName != null || remoteIp != null) {
       result.remoteEndpoint(zipkin2.Endpoint.newBuilder()
-          .serviceName(remoteServiceName)
-          .ip(remoteIp)
-          .port(span.remotePort())
-          .build());
+        .serviceName(remoteServiceName)
+        .ip(remoteIp)
+        .port(span.remotePort())
+        .build());
     }
 
     String errorTag = span.tag("error");
@@ -68,8 +81,8 @@ public final class MutableSpanConverter {
     if (ip == null) ip = localIp;
     if (port <= 0) port = localPort;
     if (localServiceName.equals(serviceName)
-        && (localIp == null ? ip == null : localIp.equals(ip))
-        && localPort == port) {
+      && (localIp == null ? ip == null : localIp.equals(ip))
+      && localPort == port) {
       span.localEndpoint(localEndpoint);
     } else {
       span.localEndpoint(Endpoint.newBuilder().serviceName(serviceName).ip(ip).port(port).build());

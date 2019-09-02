@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.propagation;
 
 import brave.internal.Nullable;
@@ -20,8 +33,8 @@ public class B3SinglePropagationTest extends PropagationTest<String> {
   }
 
   @Override protected void inject(Map<String, String> map, @Nullable String traceId,
-      @Nullable String parentId, @Nullable String spanId, @Nullable Boolean sampled,
-      @Nullable Boolean debug) {
+    @Nullable String parentId, @Nullable String spanId, @Nullable Boolean sampled,
+    @Nullable Boolean debug) {
     StringBuilder builder = new StringBuilder();
     char sampledChar = sampledChar(sampled, debug);
     if (traceId == null) {
@@ -53,7 +66,7 @@ public class B3SinglePropagationTest extends PropagationTest<String> {
     SamplingFlags result = propagation.extractor(mapEntry).extract(map).samplingFlags();
 
     assertThat(result)
-        .isEqualTo(SamplingFlags.NOT_SAMPLED);
+      .isEqualTo(SamplingFlags.NOT_SAMPLED);
   }
 
   @Test public void extractTraceContext_malformed() {
@@ -63,7 +76,7 @@ public class B3SinglePropagationTest extends PropagationTest<String> {
     SamplingFlags result = propagation.extractor(mapEntry).extract(map).samplingFlags();
 
     assertThat(result)
-        .isEqualTo(SamplingFlags.EMPTY);
+      .isEqualTo(SamplingFlags.EMPTY);
   }
 
   @Test public void extractTraceContext_malformed_uuid() {
@@ -73,7 +86,7 @@ public class B3SinglePropagationTest extends PropagationTest<String> {
     SamplingFlags result = propagation.extractor(mapEntry).extract(map).samplingFlags();
 
     assertThat(result)
-        .isEqualTo(SamplingFlags.EMPTY);
+      .isEqualTo(SamplingFlags.EMPTY);
   }
 
   @Test public void extractTraceContext_debug_with_ids() {
@@ -84,6 +97,6 @@ public class B3SinglePropagationTest extends PropagationTest<String> {
     TraceContext result = propagation.extractor(mapEntry).extract(map).context();
 
     assertThat(result.debug())
-        .isTrue();
+      .isTrue();
   }
 }

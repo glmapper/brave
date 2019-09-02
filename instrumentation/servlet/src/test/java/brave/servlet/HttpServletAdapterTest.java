@@ -1,7 +1,21 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.servlet;
 
 import brave.Span;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -16,18 +30,19 @@ import static org.mockito.Mockito.when;
 public class HttpServletAdapterTest {
   HttpServletAdapter adapter = new HttpServletAdapter();
   @Mock HttpServletRequest request;
+  @Mock HttpServletResponse response;
   @Mock Span span;
 
   @Test public void path_doesntCrashOnNullUrl() {
     assertThat(adapter.path(request))
-        .isNull();
+      .isNull();
   }
 
   @Test public void path_getRequestURI() {
     when(request.getRequestURI()).thenReturn("/bar");
 
     assertThat(adapter.path(request))
-        .isEqualTo("/bar");
+      .isEqualTo("/bar");
   }
 
   @Test public void url_derivedFromUrlAndQueryString() {
@@ -35,7 +50,7 @@ public class HttpServletAdapterTest {
     when(request.getQueryString()).thenReturn("hello=world");
 
     assertThat(adapter.url(request))
-        .isEqualTo("http://foo:8080/bar?hello=world");
+      .isEqualTo("http://foo:8080/bar?hello=world");
   }
 
   @Test public void parseClientIpAndPort_prefersXForwardedFor() {
@@ -66,5 +81,17 @@ public class HttpServletAdapterTest {
 
     verify(span).remoteIpAndPort("1.2.3.4", 61687);
     verifyNoMoreInteractions(span);
+  }
+
+  @Test public void statusCodeAsInt() {
+    when(response.getStatus()).thenReturn(200);
+
+    assertThat(adapter.statusCodeAsInt(response)).isEqualTo(200);
+    assertThat(adapter.statusCode(response)).isEqualTo(200);
+  }
+
+  @Test public void statusCodeAsInt_zeroNoResponse() {
+    assertThat(adapter.statusCodeAsInt(response)).isZero();
+    assertThat(adapter.statusCode(response)).isNull();
   }
 }

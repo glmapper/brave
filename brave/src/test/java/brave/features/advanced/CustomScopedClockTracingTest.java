@@ -1,8 +1,20 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.features.advanced;
 
 import brave.Clock;
 import brave.Tracing;
-import brave.propagation.StrictScopeDecorator;
 import brave.propagation.ThreadLocalCurrentTraceContext;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,14 +30,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * span if a query occurred on it. By default, spans have a clock pinned to the trace. To use a
  * clock pinned to a connection, you have to control timestamps manually.
  *
- * <p>See https://github.com/openzipkin/brave/issues/564
+ * <p>See https://github.com/apache/incubator-zipkin-brave/issues/564
  */
 public class CustomScopedClockTracingTest {
-  List<Span> spans = new ArrayList();
+  List<Span> spans = new ArrayList<>();
   Tracing tracing = Tracing.newBuilder()
-      .currentTraceContext(ThreadLocalCurrentTraceContext.create())
-      .spanReporter(spans::add)
-      .build();
+    .currentTraceContext(ThreadLocalCurrentTraceContext.create())
+    .spanReporter(spans::add)
+    .build();
 
   @After public void close() {
     Tracing.current().close();
@@ -77,7 +89,7 @@ public class CustomScopedClockTracingTest {
 
       TracedConnection() {
         span = tracing.tracer().nextSpan().name("connection").start()
-            .tag("connection.id", id.toString());
+          .tag("connection.id", id.toString());
         clock = tracing.clock(span.context());
       }
 
@@ -102,8 +114,8 @@ public class CustomScopedClockTracingTest {
         // notice we are using the clock from the connection, which means eventhough
         // this is a different trace, the timestamps will be aligned.
         brave.Span span = tracing.tracer().nextSpan().name("query")
-            .tag("connection.id", connection.id.toString())
-            .start(clock.currentTimeMicroseconds());
+          .tag("connection.id", connection.id.toString())
+          .start(clock.currentTimeMicroseconds());
         super.execute();
         span.finish(clock.currentTimeMicroseconds());
       }
@@ -127,9 +139,9 @@ public class CustomScopedClockTracingTest {
 
     // we expect a trace for each query and one for the connection
     assertThat(spans)
-        .hasSize(3)
-        // we expect to be able to correlate all traces by the connection ID
-        .allSatisfy(s -> assertThat(s.tags())
-            .containsEntry("connection.id", connection2.id.toString()));
+      .hasSize(3)
+      // we expect to be able to correlate all traces by the connection ID
+      .allSatisfy(s -> assertThat(s.tags())
+        .containsEntry("connection.id", connection2.id.toString()));
   }
 }

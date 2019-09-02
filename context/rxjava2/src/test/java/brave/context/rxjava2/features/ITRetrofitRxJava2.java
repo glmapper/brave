@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.context.rxjava2.features;
 
 import brave.context.rxjava2.CurrentTraceContextAssemblyTracking;
@@ -36,7 +49,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class ITRetrofitRxJava2 extends ITHttp {
   TraceContext context1 = TraceContext.newBuilder().traceId(1L).spanId(1L).build();
   CurrentTraceContextAssemblyTracking contextTracking =
-      CurrentTraceContextAssemblyTracking.create(currentTraceContext);
+    CurrentTraceContextAssemblyTracking.create(currentTraceContext);
 
   @Rule public MockWebServer server = new MockWebServer();
   CurrentTraceContextObserver currentTraceContextObserver = new CurrentTraceContextObserver();
@@ -49,7 +62,7 @@ public class ITRetrofitRxJava2 extends ITHttp {
 
   @After
   public void tearDown() {
-    contextTracking.disable();
+    CurrentTraceContextAssemblyTracking.disable();
   }
 
   interface Service {
@@ -72,41 +85,41 @@ public class ITRetrofitRxJava2 extends ITHttp {
   @Test
   public void createAsync_completable_success() {
     rxjava_createAsync_success(
-        (service, observer) -> {
-          try (CurrentTraceContext.Scope scope = currentTraceContext.newScope(context1)) {
-            service.completable().subscribe(observer);
-          }
-        });
+      (service, observer) -> {
+        try (CurrentTraceContext.Scope scope = currentTraceContext.newScope(context1)) {
+          service.completable().subscribe(observer);
+        }
+      });
   }
 
   @Test
   public void createAsync_maybe_success() {
     rxjava_createAsync_success(
-        (service, observer) -> {
-          try (CurrentTraceContext.Scope scope = currentTraceContext.newScope(context1)) {
-            service.maybe().subscribe(observer);
-          }
-        });
+      (service, observer) -> {
+        try (CurrentTraceContext.Scope scope = currentTraceContext.newScope(context1)) {
+          service.maybe().subscribe(observer);
+        }
+      });
   }
 
   @Test
   public void createAsync_observable_success() {
     rxjava_createAsync_success(
-        (service, observer) -> {
-          try (CurrentTraceContext.Scope scope = currentTraceContext.newScope(context1)) {
-            service.observable().subscribe(observer);
-          }
-        });
+      (service, observer) -> {
+        try (CurrentTraceContext.Scope scope = currentTraceContext.newScope(context1)) {
+          service.observable().subscribe(observer);
+        }
+      });
   }
 
   @Test
   public void createAsync_single_success() {
     rxjava_createAsync_success(
-        (service, observer) -> {
-          try (CurrentTraceContext.Scope scope = currentTraceContext.newScope(context1)) {
-            service.single().subscribe(observer);
-          }
-        });
+      (service, observer) -> {
+        try (CurrentTraceContext.Scope scope = currentTraceContext.newScope(context1)) {
+          service.single().subscribe(observer);
+        }
+      });
   }
 
   private void rxjava_createAsync_success(BiConsumer<Service, TestObserver<Object>> subscriber) {
@@ -126,11 +139,11 @@ public class ITRetrofitRxJava2 extends ITHttp {
   @Test
   public void createAsync_flowable_success() {
     rx_createAsync_success(
-        (service, subscriber) -> {
-          try (CurrentTraceContext.Scope scope = currentTraceContext.newScope(context1)) {
-            service.flowable().subscribe(subscriber);
-          }
-        });
+      (service, subscriber) -> {
+        try (CurrentTraceContext.Scope scope = currentTraceContext.newScope(context1)) {
+          service.flowable().subscribe(subscriber);
+        }
+      });
   }
 
   private void rx_createAsync_success(BiConsumer<Service, TestSubscriber<Object>> subscriber) {
@@ -149,10 +162,10 @@ public class ITRetrofitRxJava2 extends ITHttp {
 
   Service service(CallAdapter.Factory callAdapterFactory) {
     return new Retrofit.Builder()
-        .baseUrl(server.url("/"))
-        .addCallAdapterFactory(callAdapterFactory)
-        .build()
-        .create(Service.class);
+      .baseUrl(server.url("/"))
+      .addCallAdapterFactory(callAdapterFactory)
+      .build()
+      .create(Service.class);
   }
 
   class CurrentTraceContextObserver implements Observer<Object>, Subscriber<Object> {

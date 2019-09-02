@@ -1,11 +1,24 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.vertx.web;
 
 import brave.SpanCustomizer;
 import brave.Tracing;
 import brave.http.HttpAdapter;
 import brave.http.HttpServerParser;
-import brave.test.http.ITHttpServer;
 import brave.propagation.ExtraFieldPropagation;
+import brave.test.http.ITHttpServer;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
@@ -71,7 +84,7 @@ public class ITVertxWebTracing extends ITHttpServer {
     router.route("/items/:itemId").handler(ctx -> {
       ctx.response().end(ctx.request().getParam("itemId"));
     });
-    router.route( "/async_items/:itemId").handler(ctx -> {
+    router.route("/async_items/:itemId").handler(ctx -> {
       if (Tracing.currentTracer().currentSpan() == null) {
         throw new IllegalStateException("couldn't read current span!");
       }
@@ -87,10 +100,10 @@ public class ITVertxWebTracing extends ITHttpServer {
     });
 
     Handler<RoutingContext> routingContextHandler =
-        VertxWebTracing.create(httpTracing).routingContextHandler();
+      VertxWebTracing.create(httpTracing).routingContextHandler();
     router.route()
-        .order(-1).handler(routingContextHandler)
-        .failureHandler(routingContextHandler);
+      .order(-1).handler(routingContextHandler)
+      .failureHandler(routingContextHandler);
 
     server = vertx.createHttpServer(new HttpServerOptions().setPort(0).setHost("localhost"));
 
@@ -101,8 +114,8 @@ public class ITVertxWebTracing extends ITHttpServer {
     });
 
     assertThat(latch.await(10, TimeUnit.SECONDS))
-        .withFailMessage("server didn't start")
-        .isTrue();
+      .withFailMessage("server didn't start")
+      .isTrue();
   }
 
   // makes sure we don't accidentally rewrite the incoming http path
@@ -141,8 +154,8 @@ public class ITVertxWebTracing extends ITHttpServer {
 
     Span span = takeSpan();
     assertThat(span.tags())
-        .containsEntry("http.path", path)
-        .containsEntry("http.url", url(path));
+      .containsEntry("http.path", path)
+      .containsEntry("http.url", url(path));
   }
 
   @Override

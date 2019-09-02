@@ -1,7 +1,21 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.internal.recorder;
 
 import brave.handler.FinishedSpanHandler;
 import brave.handler.MutableSpan;
+import brave.internal.InternalPropagation;
 import brave.propagation.TraceContext;
 import java.lang.ref.Reference;
 import java.util.ArrayList;
@@ -13,6 +27,7 @@ import org.junit.Test;
 import zipkin2.Annotation;
 import zipkin2.Span;
 
+import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class PendingSpansTest {
@@ -27,6 +42,7 @@ public class PendingSpansTest {
         if (!Boolean.TRUE.equals(ctx.sampled())) return true;
 
         Span.Builder b = Span.newBuilder().traceId(ctx.traceIdString()).id(ctx.traceIdString());
+        b.name(span.name());
         span.forEachAnnotation(Span.Builder::addAnnotation, b);
         spans.add(b.build());
         return true;
@@ -36,8 +52,8 @@ public class PendingSpansTest {
 
   void init(FinishedSpanHandler zipkinFinishedSpanHandler) {
     pendingSpans = new PendingSpans(() -> clock.incrementAndGet() * 1000L,
-        zipkinFinishedSpanHandler,
-        new AtomicBoolean());
+      zipkinFinishedSpanHandler,
+      new AtomicBoolean());
   }
 
   @Test
@@ -54,7 +70,7 @@ public class PendingSpansTest {
     TraceContext traceJoin = trace.toBuilder().shared(true).build();
     TraceContext trace2 = TraceContext.newBuilder().traceId(2L).spanId(2L).build();
     TraceContext traceChild =
-        TraceContext.newBuilder().traceId(1L).parentId(2L).spanId(3L).build();
+      TraceContext.newBuilder().traceId(1L).parentId(2L).spanId(3L).build();
 
     PendingSpan traceSpan = pendingSpans.getOrCreate(trace, false);
     PendingSpan traceJoinSpan = pendingSpans.getOrCreate(traceJoin, false);
@@ -83,7 +99,7 @@ public class PendingSpansTest {
     assertThat(context1).isNotEqualTo(context2);
 
     assertThat(pendingSpans.getOrCreate(context1, false)).isNotEqualTo(
-        pendingSpans.getOrCreate(context2, false));
+      pendingSpans.getOrCreate(context2, false));
   }
 
   @Test
@@ -91,7 +107,7 @@ public class PendingSpansTest {
     TraceContext context2 = context.toBuilder().shared(true).build();
 
     assertThat(pendingSpans.getOrCreate(context, false)).isNotEqualTo(
-        pendingSpans.getOrCreate(context2, false));
+      pendingSpans.getOrCreate(context2, false));
   }
 
   @Test
@@ -132,7 +148,7 @@ public class PendingSpansTest {
     pendingSpans.remove(context1);
 
     assertThat(pendingSpans.delegate.keySet()).extracting(o -> ((Reference) o).get())
-        .containsOnly(context2);
+      .containsOnly(context2);
   }
 
   /** mainly ensures internals aren't dodgy on null */
@@ -143,8 +159,8 @@ public class PendingSpansTest {
     pendingSpans.remove(context);
 
     assertThat(pendingSpans.delegate.keySet()).extracting(o -> ((Reference) o).get())
-        .hasSize(1)
-        .containsNull();
+      .hasSize(1)
+      .containsNull();
   }
 
   @Test
@@ -155,7 +171,7 @@ public class PendingSpansTest {
 
     // we'd expect two distinct entries.. the span would be reported twice, but merged zipkin-side
     assertThat(pendingSpans.delegate.keySet()).extracting(o -> ((Reference) o).get())
-        .containsExactlyInAnyOrder(null, context);
+      .containsExactlyInAnyOrder(null, context);
   }
 
   /**
@@ -166,7 +182,9 @@ public class PendingSpansTest {
   @Test
   public void reportOrphanedSpans_afterGC() throws Exception {
     TraceContext context1 = context.toBuilder().traceId(1).spanId(1).build();
-    pendingSpans.getOrCreate(context1, false);
+    PendingSpan span = pendingSpans.getOrCreate(context1, false);
+    span.state.name("foo");
+    span = null; // clear reference so GC occurs
     TraceContext context2 = context.toBuilder().traceId(2).spanId(2).build();
     pendingSpans.getOrCreate(context2, false);
     TraceContext context3 = context.toBuilder().traceId(3).spanId(3).build();
@@ -175,7 +193,7 @@ public class PendingSpansTest {
     pendingSpans.getOrCreate(context4, false);
     // ensure sampled local spans are not reported when orphaned unless they are also sampled remote
     TraceContext context5 =
-        context.toBuilder().spanId(5).sampledLocal(true).sampled(false).build();
+      context.toBuilder().spanId(5).sampledLocal(true).sampled(false).build();
     pendingSpans.getOrCreate(context5, false);
 
     int initialClockVal = clock.get();
@@ -186,23 +204,20 @@ public class PendingSpansTest {
 
     // After GC, we expect that the weak references of context1 and context2 to be cleared
     assertThat(pendingSpans.delegate.keySet()).extracting(o -> ((Reference) o).get())
-        .containsExactlyInAnyOrder(null, null, context3, context4, null);
+      .containsExactlyInAnyOrder(null, null, context3, context4, null);
 
     pendingSpans.reportOrphanedSpans();
 
     // After reporting, we expect no the weak references of null
     assertThat(pendingSpans.delegate.keySet()).extracting(o -> ((Reference) o).get())
-        .containsExactlyInAnyOrder(context3, context4);
+      .containsExactlyInAnyOrder(context3, context4);
 
-    // We also expect only the sampled (remote) spans to have been reported with a flush annotation
-    assertThat(spans).flatExtracting(Span::id)
-        .containsExactlyInAnyOrder("0000000000000001", "0000000000000002");
-    assertThat(spans).flatExtracting(Span::annotations).extracting(Annotation::value)
-        .containsExactly("brave.flush", "brave.flush");
-
-    // we also expect the clock to have been called only once
-    assertThat(spans).flatExtracting(Span::annotations).extracting(Annotation::timestamp)
-        .allSatisfy(t -> assertThat(t).isEqualTo((initialClockVal + 1) * 1000));
+    // We also expect only the sampled span containing data to have been reported
+    assertThat(spans).hasSize(1);
+    assertThat(spans.get(0).id()).isEqualTo("0000000000000001");
+    assertThat(spans.get(0).name()).isEqualTo("foo"); // data was flushed
+    assertThat(spans.get(0).annotations())
+      .containsExactly(Annotation.create((initialClockVal + 1) * 1000, "brave.flush"));
   }
 
   @Test
@@ -226,13 +241,13 @@ public class PendingSpansTest {
 
     // After GC, we expect that the weak references of context1 and context2 to be cleared
     assertThat(pendingSpans.delegate.keySet()).extracting(o -> ((Reference) o).get())
-        .containsExactlyInAnyOrder(null, null, context3, context4);
+      .containsExactlyInAnyOrder(null, null, context3, context4);
 
     pendingSpans.reportOrphanedSpans();
 
     // After reporting, we expect no the weak references of null
     assertThat(pendingSpans.delegate.keySet()).extracting(o -> ((Reference) o).get())
-        .containsExactlyInAnyOrder(context3, context4);
+      .containsExactlyInAnyOrder(context3, context4);
 
     // since this is noop, we don't expect any spans to be reported
     assertThat(spans).isEmpty();
@@ -257,32 +272,32 @@ public class PendingSpansTest {
 
     // Sanity check that the referent trace context cleared due to GC
     assertThat(pendingSpans.delegate.keySet()).extracting(o -> ((Reference) o).get())
-        .hasSize(1)
-        .containsNull();
+      .hasSize(1)
+      .containsNull();
 
     // The innocent caller isn't killed due to the exception in implicitly reporting GC'd spans
     pendingSpans.remove(context);
 
     // However, the reference queue has been cleared.
     assertThat(pendingSpans.delegate.keySet())
-        .isEmpty();
+      .isEmpty();
   }
 
   /** Debugging should show what the spans are, as well any references pending clear. */
   @Test
   public void toString_saysWhatReferentsAre() {
     assertThat(pendingSpans.toString())
-        .isEqualTo("PendingSpans[]");
+      .isEqualTo("PendingSpans[]");
 
     pendingSpans.getOrCreate(context, false);
 
     assertThat(pendingSpans.toString())
-        .isEqualTo("PendingSpans[WeakReference(" + context + ")]");
+      .isEqualTo("PendingSpans[WeakReference(" + context + ")]");
 
     pretendGCHappened();
 
     assertThat(pendingSpans.toString())
-        .isEqualTo("PendingSpans[ClearedReference()]");
+      .isEqualTo("PendingSpans[ClearedReference()]");
   }
 
   @Test
@@ -294,16 +309,60 @@ public class PendingSpansTest {
   }
 
   @Test
+  public void orphanContext_dropsExtra() throws Exception {
+    TraceContext context1 = context.toBuilder().extra(asList(1, true)).build();
+
+    TraceContext[] handledContext = {null};
+    init(new FinishedSpanHandler() {
+      @Override public boolean handle(TraceContext context, MutableSpan span) {
+        handledContext[0] = context;
+        return true;
+      }
+    });
+
+    // We drop the reference to the context, which means the next GC should attempt to flush it
+    pendingSpans.getOrCreate(context1.toBuilder().build(), false).state().tag("foo", "bar");
+
+    blockOnGC();
+    pendingSpans.reportOrphanedSpans();
+
+    assertThat(handledContext[0]).isEqualTo(context1); // ID comparision is the same
+    assertThat(handledContext[0].extra()).isEmpty(); // No extra fields are retained
+  }
+
+  @Test
+  public void orphanContext_includesAllFlags() throws Exception {
+    TraceContext context1 = context.toBuilder().sampled(null).sampledLocal(true).shared(true).build();
+
+    TraceContext[] handledContext = {null};
+    init(new FinishedSpanHandler() {
+      @Override public boolean handle(TraceContext context, MutableSpan span) {
+        handledContext[0] = context;
+        return true;
+      }
+    });
+
+    // We drop the reference to the context, which means the next GC should attempt to flush it
+    pendingSpans.getOrCreate(context1.toBuilder().build(), false).state().tag("foo", "bar");
+
+    blockOnGC();
+    pendingSpans.reportOrphanedSpans();
+
+    assertThat(InternalPropagation.instance.flags(handledContext[0]))
+      .isEqualTo(InternalPropagation.instance.flags(context1)); // no flags lost
+  }
+
+  @Test
   public void lookupKey_hashCode() {
     TraceContext context1 = context;
     TraceContext context2 = context.toBuilder().shared(true).build();
 
     assertThat(PendingSpans.LookupKey.generateHashCode(
-        context1.traceIdHigh(), context1.traceId(), context1.spanId(), context1.shared()
+      context1.traceIdHigh(), context1.traceId(), context1.spanId(), context1.shared()
     )).isEqualTo(context1.hashCode());
 
     assertThat(PendingSpans.LookupKey.generateHashCode(
-        context2.traceIdHigh(), context2.traceId(), context2.spanId(), context2.shared()
+      context2.traceIdHigh(), context2.traceId(), context2.spanId(), context2.shared()
     )).isEqualTo(context2.hashCode());
   }
 

@@ -1,7 +1,21 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.servlet;
 
 import brave.Span;
 import brave.http.HttpServerAdapter;
+import brave.internal.Nullable;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpServletResponseWrapper;
@@ -18,8 +32,8 @@ public class HttpServletAdapter extends HttpServerAdapter<HttpServletRequest, Ht
   public HttpServletResponse adaptResponse(HttpServletRequest req, HttpServletResponse resp) {
     String httpRoute = (String) req.getAttribute("http.route");
     return httpRoute != null
-        ? new DecoratedHttpServletResponse(resp, req.getMethod(), httpRoute)
-        : resp;
+      ? new DecoratedHttpServletResponse(resp, req.getMethod(), httpRoute)
+      : resp;
   }
 
   final ServletRuntime servlet = ServletRuntime.get();
@@ -75,7 +89,12 @@ public class HttpServletAdapter extends HttpServerAdapter<HttpServletRequest, Ht
     return null;
   }
 
-  @Override public Integer statusCode(HttpServletResponse response) {
+  @Override @Nullable public Integer statusCode(HttpServletResponse response) {
+    int result = statusCodeAsInt(response);
+    return result != 0 ? result : null;
+  }
+
+  @Override public int statusCodeAsInt(HttpServletResponse response) {
     return servlet.status(response);
   }
 

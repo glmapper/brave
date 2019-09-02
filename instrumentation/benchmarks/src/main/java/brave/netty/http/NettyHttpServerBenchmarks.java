@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.netty.http;
 
 import brave.Tracing;
@@ -43,23 +56,23 @@ public class NettyHttpServerBenchmarks extends HttpServerBenchmarks {
     static final AttributeKey<String> URI_ATTRIBUTE = AttributeKey.valueOf("uri");
 
     final ChannelDuplexHandler unsampled = NettyHttpTracing.create(
-        Tracing.newBuilder().sampler(Sampler.NEVER_SAMPLE).spanReporter(Reporter.NOOP).build()
+      Tracing.newBuilder().sampler(Sampler.NEVER_SAMPLE).spanReporter(Reporter.NOOP).build()
     ).serverHandler();
     final ChannelDuplexHandler traced = NettyHttpTracing.create(
-        Tracing.newBuilder()
-            .propagationFactory(ExtraFieldPropagation.newFactoryBuilder(B3Propagation.FACTORY)
-                .addField("x-vcap-request-id")
-                .addPrefixedFields("baggage-", Arrays.asList("country-code", "user-id"))
-                .build()
-            )
-            .spanReporter(Reporter.NOOP)
-            .build()
+      Tracing.newBuilder()
+        .propagationFactory(ExtraFieldPropagation.newFactoryBuilder(B3Propagation.FACTORY)
+          .addField("x-vcap-request-id")
+          .addPrefixedFields("baggage-", Arrays.asList("country-code", "user-id"))
+          .build()
+        )
+        .spanReporter(Reporter.NOOP)
+        .build()
     ).serverHandler();
     final ChannelDuplexHandler tracedExtra = NettyHttpTracing.create(
-        Tracing.newBuilder().spanReporter(Reporter.NOOP).build()
+      Tracing.newBuilder().spanReporter(Reporter.NOOP).build()
     ).serverHandler();
     final ChannelDuplexHandler traced128 = NettyHttpTracing.create(
-        Tracing.newBuilder().traceId128Bit(true).spanReporter(Reporter.NOOP).build()
+      Tracing.newBuilder().traceId128Bit(true).spanReporter(Reporter.NOOP).build()
     ).serverHandler();
 
     @Override public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
@@ -112,16 +125,16 @@ public class NettyHttpServerBenchmarks extends HttpServerBenchmarks {
     ServerBootstrap b = new ServerBootstrap();
     b.option(ChannelOption.SO_BACKLOG, 1024);
     b.group(bossGroup, workerGroup)
-        .channel(NioServerSocketChannel.class)
-        .childHandler(new ChannelInitializer<Channel>() {
-          @Override
-          protected void initChannel(final Channel ch) throws Exception {
-            ChannelPipeline p = ch.pipeline();
-            p.addLast(new HttpServerCodec());
-            p.addLast(new TracingDispatchHandler());
-            p.addLast(new HelloWorldHandler());
-          }
-        });
+      .channel(NioServerSocketChannel.class)
+      .childHandler(new ChannelInitializer<Channel>() {
+        @Override
+        protected void initChannel(final Channel ch) throws Exception {
+          ChannelPipeline p = ch.pipeline();
+          p.addLast(new HttpServerCodec());
+          p.addLast(new TracingDispatchHandler());
+          p.addLast(new HelloWorldHandler());
+        }
+      });
 
     Channel ch = b.bind(0).sync().channel();
     return ((InetSocketAddress) ch.localAddress()).getPort();
@@ -138,8 +151,8 @@ public class NettyHttpServerBenchmarks extends HttpServerBenchmarks {
     //
     //Thread.sleep(10 * 1000 * 60);
     Options opt = new OptionsBuilder()
-        .include(".*" + NettyHttpServerBenchmarks.class.getSimpleName() + ".*")
-        .build();
+      .include(".*" + NettyHttpServerBenchmarks.class.getSimpleName() + ".*")
+      .build();
 
     new Runner(opt).run();
   }

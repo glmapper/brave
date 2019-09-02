@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.httpasyncclient;
 
 import brave.test.http.ITHttpAsyncClient;
@@ -28,14 +41,14 @@ public class ITTracingHttpAsyncClientBuilder extends ITHttpAsyncClient<Closeable
   }
 
   @Override protected void get(CloseableHttpAsyncClient client, String pathIncludingQuery)
-      throws Exception {
+    throws Exception {
     HttpGet get = new HttpGet(URI.create(url(pathIncludingQuery)));
     EntityUtils.consume(client.execute(get, null).get().getEntity());
   }
 
   @Override
   protected void post(CloseableHttpAsyncClient client, String pathIncludingQuery, String body)
-      throws Exception {
+    throws Exception {
     HttpPost post = new HttpPost(URI.create(url(pathIncludingQuery)));
     post.setEntity(new NStringEntity(body));
     EntityUtils.consume(client.execute(post, null).get().getEntity());
@@ -50,16 +63,16 @@ public class ITTracingHttpAsyncClientBuilder extends ITHttpAsyncClient<Closeable
     closeClient(client);
 
     client = TracingHttpAsyncClientBuilder.create(httpTracing)
-        .addInterceptorLast((HttpRequestInterceptor) (request, context) ->
-            request.setHeader("my-id", currentTraceContext.get().traceIdString())
-        ).build();
+      .addInterceptorLast((HttpRequestInterceptor) (request, context) ->
+        request.setHeader("my-id", currentTraceContext.get().traceIdString())
+      ).build();
     client.start();
 
     get(client, "/foo");
 
     RecordedRequest request = server.takeRequest();
     assertThat(request.getHeader("x-b3-traceId"))
-        .isEqualTo(request.getHeader("my-id"));
+      .isEqualTo(request.getHeader("my-id"));
 
     takeSpan();
   }

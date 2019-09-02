@@ -1,10 +1,23 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave;
 
 import brave.handler.FinishedSpanHandler;
 import brave.internal.IpLiteral;
 import brave.internal.Nullable;
 import brave.internal.Platform;
-import brave.internal.handler.FinishedSpanHandlers;
+import brave.internal.handler.NoopAwareFinishedSpanHandler;
 import brave.internal.handler.ZipkinFinishedSpanHandler;
 import brave.internal.recorder.PendingSpans;
 import brave.propagation.B3Propagation;
@@ -14,7 +27,6 @@ import brave.propagation.TraceContext;
 import brave.sampler.Sampler;
 import java.io.Closeable;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
@@ -132,7 +144,13 @@ public abstract class Tracing implements Closeable {
     boolean traceId128Bit = false, supportsJoin = true;
     Propagation.Factory propagationFactory = B3Propagation.FACTORY;
     ErrorParser errorParser = new ErrorParser();
-    List<FinishedSpanHandler> finishedSpanHandlers = new ArrayList<>();
+    // Intentional dupes would be surprising. Be very careful when adding features here that no
+    // other list parameter extends FinishedSpanHandler. If it did, it could be accidentally added
+    // result in dupes here. Any component that provides a FinishedSpanHandler needs to be
+    // explicitly documented to not be added also here, to avoid dupes. That or mark a provider
+    // method protected, but still the user could accidentally create a dupe by misunderstanding and
+    // overriding public so they can add it here.
+    ArrayList<FinishedSpanHandler> finishedSpanHandlers = new ArrayList<>();
 
     /**
      * Lower-case label of the remote node in the service graph, such as "favstar". Avoid names with
@@ -180,7 +198,7 @@ public abstract class Tracing implements Closeable {
     }
 
     /**
-     * Sets the {@link zipkin2.Span#localEndpoint Endpoint of the local service} being traced.
+     * Sets the {@link zipkin2.Span#localEndpoint() Endpoint of the local service} being traced.
      *
      * @deprecated Use {@link #localServiceName(String)} {@link #localIp(String)} and {@link
      * #localPort(int)}. Will be removed in Brave v6.
@@ -209,7 +227,7 @@ public abstract class Tracing implements Closeable {
      * tracingBuilder.spanReporter(spanReporter);
      * }</pre>
      *
-     * <p>See https://github.com/openzipkin/zipkin-reporter-java
+     * <p>See https://github.com/apache/incubator-zipkin-reporter-java
      */
     public Builder spanReporter(Reporter<zipkin2.Span> spanReporter) {
       if (spanReporter == null) throw new NullPointerException("spanReporter == null");
@@ -310,19 +328,24 @@ public abstract class Tracing implements Closeable {
      * <h3>Advanced notes</h3>
      *
      * <p>This is named firehose as it can receive data even when spans are not sampled remotely.
-     * For example, {@link FinishedSpanHandler#alwaysSampleLocal()} will generate data for all traced
-     * requests while not affecting headers. This setting is often used for metrics aggregation.
+     * For example, {@link FinishedSpanHandler#alwaysSampleLocal()} will generate data for all
+     * traced requests while not affecting headers. This setting is often used for metrics
+     * aggregation.
      *
      *
      * <p>Your handler can also be a custom span transport. When this is the case, set the {@link
      * #spanReporter(Reporter) span reporter} to {@link Reporter#NOOP} to avoid redundant conversion
      * overhead.
+     *
+     * @see TraceContext#sampledLocal()
      */
     public Builder addFinishedSpanHandler(FinishedSpanHandler finishedSpanHandler) {
       if (finishedSpanHandler == null) {
         throw new NullPointerException("finishedSpanHandler == null");
       }
-      this.finishedSpanHandlers.add(finishedSpanHandler);
+      if (finishedSpanHandler != FinishedSpanHandler.NOOP) { // lenient on config bug
+        this.finishedSpanHandlers.add(finishedSpanHandler);
+      }
       return this;
     }
 
@@ -370,32 +393,37 @@ public abstract class Tracing implements Closeable {
       this.sampler = builder.sampler;
       this.noop = new AtomicBoolean();
 
-      List<FinishedSpanHandler> finishedSpanHandlers = builder.finishedSpanHandlers;
+      FinishedSpanHandler zipkinHandler = builder.spanReporter != Reporter.NOOP
+        ? new ZipkinFinishedSpanHandler(builder.spanReporter, errorParser,
+        builder.localServiceName, builder.localIp, builder.localPort)
+        : FinishedSpanHandler.NOOP;
 
-      // If a Zipkin reporter is present, it is invoked after the user-supplied finished span handlers.
-      FinishedSpanHandler zipkinFirehose = FinishedSpanHandler.NOOP;
-      if (builder.spanReporter != Reporter.NOOP) {
-        zipkinFirehose = new ZipkinFinishedSpanHandler(builder.spanReporter, errorParser,
-            builder.localServiceName, builder.localIp, builder.localPort);
-        finishedSpanHandlers = new ArrayList<>(finishedSpanHandlers);
-        finishedSpanHandlers.add(zipkinFirehose);
+      FinishedSpanHandler finishedSpanHandler =
+        zipkinReportingFinishedSpanHandler(builder.finishedSpanHandlers, zipkinHandler, noop);
+
+      ArrayList<FinishedSpanHandler> orphanedSpanHandlers = new ArrayList<>();
+      for (FinishedSpanHandler handler : builder.finishedSpanHandlers) {
+        if (handler.supportsOrphans()) orphanedSpanHandlers.add(handler);
       }
 
-      // Compose the handlers into one which honors Tracing.noop
-      FinishedSpanHandler finishedSpanHandler =
-          FinishedSpanHandlers.noopAware(FinishedSpanHandlers.compose(finishedSpanHandlers), noop);
+      FinishedSpanHandler orphanedSpanHandler = finishedSpanHandler;
+      boolean allHandlersSupportOrphans = builder.finishedSpanHandlers.equals(orphanedSpanHandlers);
+      if (!allHandlersSupportOrphans) {
+        orphanedSpanHandler =
+          zipkinReportingFinishedSpanHandler(orphanedSpanHandlers, zipkinHandler, noop);
+      }
 
       this.tracer = new Tracer(
-          builder.clock,
-          builder.propagationFactory,
-          finishedSpanHandler,
-          new PendingSpans(clock, zipkinFirehose, noop),
-          builder.sampler,
-          builder.currentTraceContext,
-          builder.traceId128Bit || propagationFactory.requires128BitTraceId(),
-          builder.supportsJoin && propagationFactory.supportsJoin(),
-          finishedSpanHandler.alwaysSampleLocal(),
-          noop
+        builder.clock,
+        builder.propagationFactory,
+        finishedSpanHandler,
+        new PendingSpans(clock, orphanedSpanHandler, noop),
+        builder.sampler,
+        builder.currentTraceContext,
+        builder.traceId128Bit || propagationFactory.requires128BitTraceId(),
+        builder.supportsJoin && propagationFactory.supportsJoin(),
+        finishedSpanHandler.alwaysSampleLocal(),
+        noop
       );
       maybeSetCurrent();
     }
@@ -439,6 +467,10 @@ public abstract class Tracing implements Closeable {
       }
     }
 
+    @Override public String toString() {
+      return tracer.toString();
+    }
+
     @Override public void close() {
       if (current != this) return;
       // don't blindly set most recent to null as there could be a race
@@ -446,6 +478,16 @@ public abstract class Tracing implements Closeable {
         if (current == this) current = null;
       }
     }
+  }
+
+  static FinishedSpanHandler zipkinReportingFinishedSpanHandler(
+    ArrayList<FinishedSpanHandler> input, FinishedSpanHandler zipkinHandler, AtomicBoolean noop) {
+    ArrayList<FinishedSpanHandler> defensiveCopy = new ArrayList<>(input);
+    // When present, the Zipkin handler is invoked after the user-supplied finished span handlers.
+    if (zipkinHandler != FinishedSpanHandler.NOOP) defensiveCopy.add(zipkinHandler);
+
+    // Make sure any exceptions caused by handlers don't crash callers
+    return NoopAwareFinishedSpanHandler.create(defensiveCopy, noop);
   }
 
   Tracing() { // intentionally hidden constructor

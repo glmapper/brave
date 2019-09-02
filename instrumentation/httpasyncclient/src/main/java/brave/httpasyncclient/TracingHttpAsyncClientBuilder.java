@@ -1,9 +1,23 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.httpasyncclient;
 
 import brave.Span;
 import brave.Tracing;
 import brave.http.HttpClientHandler;
 import brave.http.HttpTracing;
+import brave.internal.Nullable;
 import brave.propagation.CurrentTraceContext;
 import brave.propagation.CurrentTraceContext.Scope;
 import brave.propagation.Propagation;
@@ -19,6 +33,7 @@ import org.apache.http.HttpRequest;
 import org.apache.http.HttpRequestInterceptor;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpResponseInterceptor;
+import org.apache.http.StatusLine;
 import org.apache.http.client.methods.HttpRequestWrapper;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.concurrent.FutureCallback;
@@ -37,15 +52,15 @@ import org.apache.http.protocol.HttpContext;
  */
 public final class TracingHttpAsyncClientBuilder extends HttpAsyncClientBuilder {
   static final Propagation.Setter<HttpMessage, String> SETTER = // retrolambda no likey
-      new Propagation.Setter<HttpMessage, String>() {
-        @Override public void put(HttpMessage carrier, String key, String value) {
-          carrier.setHeader(key, value);
-        }
+    new Propagation.Setter<HttpMessage, String>() {
+      @Override public void put(HttpMessage carrier, String key, String value) {
+        carrier.setHeader(key, value);
+      }
 
-        @Override public String toString() {
-          return "HttpMessage::setHeader";
-        }
-      };
+      @Override public String toString() {
+        return "HttpMessage::setHeader";
+      }
+    };
 
   public static HttpAsyncClientBuilder create(Tracing tracing) {
     return new TracingHttpAsyncClientBuilder(HttpTracing.create(tracing));
@@ -144,12 +159,14 @@ public final class TracingHttpAsyncClientBuilder extends HttpAsyncClientBuilder 
       return result != null ? result.getValue() : null;
     }
 
-    @Override public Integer statusCode(HttpResponse response) {
-      return statusCodeAsInt(response);
+    @Override @Nullable public Integer statusCode(HttpResponse response) {
+      int result = statusCodeAsInt(response);
+      return result != 0 ? result : null;
     }
 
     @Override public int statusCodeAsInt(HttpResponse response) {
-      return response.getStatusLine().getStatusCode();
+      StatusLine statusLine = response.getStatusLine();
+      return statusLine != null ? statusLine.getStatusCode() : 0;
     }
   }
 
@@ -161,14 +178,14 @@ public final class TracingHttpAsyncClientBuilder extends HttpAsyncClientBuilder 
     }
 
     @Override public <T> Future<T> execute(HttpAsyncRequestProducer requestProducer,
-        HttpAsyncResponseConsumer<T> responseConsumer, HttpContext context,
-        FutureCallback<T> callback) {
+      HttpAsyncResponseConsumer<T> responseConsumer, HttpContext context,
+      FutureCallback<T> callback) {
       context.setAttribute(TraceContext.class.getName(), currentTraceContext.get());
       return delegate.execute(
-          new TracingAsyncRequestProducer(requestProducer, context),
-          new TracingAsyncResponseConsumer<>(responseConsumer, context),
-          context,
-          callback
+        new TracingAsyncRequestProducer(requestProducer, context),
+        new TracingAsyncResponseConsumer<>(responseConsumer, context),
+        context,
+        callback
       );
     }
 
@@ -237,18 +254,18 @@ public final class TracingHttpAsyncClientBuilder extends HttpAsyncClientBuilder 
     final HttpContext context;
 
     TracingAsyncResponseConsumer(HttpAsyncResponseConsumer<T> responseConsumer,
-        HttpContext context) {
+      HttpContext context) {
       this.responseConsumer = responseConsumer;
       this.context = context;
     }
 
     @Override public void responseReceived(HttpResponse response)
-        throws IOException, HttpException {
+      throws IOException, HttpException {
       responseConsumer.responseReceived(response);
     }
 
     @Override public void consumeContent(ContentDecoder decoder, IOControl ioctrl)
-        throws IOException {
+      throws IOException {
       responseConsumer.consumeContent(decoder, ioctrl);
     }
 

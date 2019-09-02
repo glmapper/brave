@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.internal;
 
 import com.google.common.collect.Sets;
@@ -29,27 +42,27 @@ import static org.powermock.api.mockito.PowerMockito.when;
 @PowerMockIgnore({"org.apache.logging.*", "javax.script.*"})
 @PrepareForTest({Platform.class, NetworkInterface.class})
 public class PlatformTest {
-  Platform platform = Platform.Jre7.buildIfSupported();
+  Platform platform = new Platform.Jre7();
 
   @Test public void clock_hasNiceToString_jre7() {
     assertThat(platform.clock())
-        .hasToString("System.currentTimeMillis()");
+      .hasToString("System.currentTimeMillis()");
   }
 
   @Test public void clock_hasNiceToString_jre9() {
     Platform platform = new Platform.Jre9();
 
     assertThat(platform.clock())
-        .hasToString("Clock.systemUTC().instant()");
+      .hasToString("Clock.systemUTC().instant()");
   }
 
   // example from X-Amzn-Trace-Id: Root=1-5759e988-bd862e3fe1be46a994272793;Sampled=1
   @Test public void randomLong_epochSecondsPlusRandom() {
     mockStatic(System.class);
     when(System.currentTimeMillis())
-        .thenReturn(1465510280_000L); // Thursday, June 9, 2016 10:11:20 PM
+      .thenReturn(1465510280_000L); // Thursday, June 9, 2016 10:11:20 PM
 
-    long traceIdHigh = Platform.Jre7.buildIfSupported().nextTraceIdHigh();
+    long traceIdHigh = platform.nextTraceIdHigh();
 
     assertThat(HexCodec.toLowerHex(traceIdHigh)).startsWith("5759e988");
   }
@@ -61,7 +74,7 @@ public class PlatformTest {
     long traceIdHigh = Platform.nextTraceIdHigh(0xffffffff);
 
     assertThat(HexCodec.toLowerHex(traceIdHigh))
-        .isEqualTo("5759e988ffffffff");
+      .isEqualTo("5759e988ffffffff");
   }
 
   @Test public void linkLocalIp_lazySet() {
@@ -71,12 +84,12 @@ public class PlatformTest {
     if (platform.produceLinkLocalIp() == null) return;
 
     assertThat(platform.linkLocalIp())
-        .isNotNull();
+      .isNotNull();
   }
 
   @Test public void linkLocalIp_sameInstance() {
     assertThat(platform.linkLocalIp())
-        .isSameAs(platform.linkLocalIp());
+      .isSameAs(platform.linkLocalIp());
   }
 
   @Test public void produceLinkLocalIp_exceptionReadingNics() throws Exception {
@@ -84,7 +97,7 @@ public class PlatformTest {
     when(NetworkInterface.getNetworkInterfaces()).thenThrow(SocketException.class);
 
     assertThat(platform.produceLinkLocalIp())
-        .isNull();
+      .isNull();
   }
 
   /** possible albeit very unlikely */
@@ -92,16 +105,16 @@ public class PlatformTest {
     mockStatic(NetworkInterface.class);
 
     when(NetworkInterface.getNetworkInterfaces())
-        .thenReturn(null);
+      .thenReturn(null);
 
     assertThat(platform.linkLocalIp())
-        .isNull();
+      .isNull();
 
     when(NetworkInterface.getNetworkInterfaces())
-        .thenReturn(new Vector<NetworkInterface>().elements());
+      .thenReturn(new Vector<NetworkInterface>().elements());
 
     assertThat(platform.produceLinkLocalIp())
-        .isNull();
+      .isNull();
   }
 
   /** also possible albeit unlikely */
@@ -109,14 +122,14 @@ public class PlatformTest {
     nicWithAddress(null);
 
     assertThat(platform.produceLinkLocalIp())
-        .isNull();
+      .isNull();
   }
 
   @Test public void produceLinkLocalIp_siteLocal_ipv4() throws Exception {
     nicWithAddress(InetAddress.getByAddress("local", new byte[] {(byte) 192, (byte) 168, 0, 1}));
 
     assertThat(platform.produceLinkLocalIp())
-        .isEqualTo("192.168.0.1");
+      .isEqualTo("192.168.0.1");
   }
 
   @Test public void produceLinkLocalIp_siteLocal_ipv6() throws Exception {
@@ -124,21 +137,21 @@ public class PlatformTest {
     nicWithAddress(ipv6);
 
     assertThat(platform.produceLinkLocalIp())
-        .isEqualTo(ipv6.getHostAddress());
+      .isEqualTo(ipv6.getHostAddress());
   }
 
   @Test public void produceLinkLocalIp_notSiteLocal_ipv4() throws Exception {
     nicWithAddress(InetAddress.getByAddress("external", new byte[] {1, 2, 3, 4}));
 
     assertThat(platform.produceLinkLocalIp())
-        .isNull();
+      .isNull();
   }
 
   @Test public void produceLinkLocalIp_notSiteLocal_ipv6() throws Exception {
     nicWithAddress(Inet6Address.getByName("2001:db8::c001"));
 
     assertThat(platform.produceLinkLocalIp())
-        .isNull();
+      .isNull();
   }
 
   /**

@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.jersey.server;
 
 import java.net.URI;
@@ -33,13 +46,13 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @State(Scope.Thread)
 public class TracingApplicationEventListenerAdapterBenchmarks {
   FakeExtendedUriInfo uriInfo = new FakeExtendedUriInfo(URI.create("/"),
-      Arrays.asList(
-          new PathTemplate("/"),
-          new PathTemplate("/items/{itemId}")
-      )
+    Arrays.asList(
+      new PathTemplate("/"),
+      new PathTemplate("/items/{itemId}")
+    )
   );
   ContainerRequest request = new ContainerRequest(
-      URI.create("/"), null, null, null, new MapPropertiesDelegate()
+    URI.create("/"), null, null, null, new MapPropertiesDelegate()
   ) {
     @Override public ExtendedUriInfo getUriInfo() {
       return uriInfo;
@@ -47,16 +60,16 @@ public class TracingApplicationEventListenerAdapterBenchmarks {
   };
   ContainerResponse response = new ContainerResponse(request, new ServerResponse());
   RequestEvent event = new RequestEventImpl.Builder()
-      .setContainerRequest(request)
-      .setContainerResponse(response).build(RequestEvent.Type.FINISHED);
+    .setContainerRequest(request)
+    .setContainerResponse(response).build(RequestEvent.Type.FINISHED);
 
   FakeExtendedUriInfo nestedUriInfo = new FakeExtendedUriInfo(URI.create("/"),
-      Arrays.asList(
-          new PathTemplate("/"),
-          new PathTemplate("/items/{itemId}"),
-          new PathTemplate("/"),
-          new PathTemplate("/nested")
-      )
+    Arrays.asList(
+      new PathTemplate("/"),
+      new PathTemplate("/items/{itemId}"),
+      new PathTemplate("/"),
+      new PathTemplate("/nested")
+    )
   );
 
   TracingApplicationEventListener.Adapter adapter = new TracingApplicationEventListener.Adapter();
@@ -72,8 +85,8 @@ public class TracingApplicationEventListenerAdapterBenchmarks {
   // Convenience main entry-point
   public static void main(String[] args) throws RunnerException {
     Options opt = new OptionsBuilder()
-        .include(".*" + TracingApplicationEventListenerAdapterBenchmarks.class.getSimpleName())
-        .build();
+      .include(".*" + TracingApplicationEventListenerAdapterBenchmarks.class.getSimpleName())
+      .build();
 
     new Runner(opt).run();
   }

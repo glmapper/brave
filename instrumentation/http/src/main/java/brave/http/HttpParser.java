@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.http;
 
 import brave.ErrorParser;
@@ -79,7 +92,7 @@ public class HttpParser {
   // This accepts response or exception because sometimes http 500 is an exception and sometimes not
   // If this were not an abstraction, we'd use separate hooks for response and error.
   public <Resp> void response(HttpAdapter<?, Resp> adapter, @Nullable Resp res,
-      @Nullable Throwable error, SpanCustomizer customizer) {
+    @Nullable Throwable error, SpanCustomizer customizer) {
     int statusCode = 0;
     if (res != null) {
       statusCode = adapter.statusCodeAsInt(res);
@@ -122,7 +135,7 @@ public class HttpParser {
   // BRAVE6: httpStatus is a Integer, not a int. We can't change this api as users expect this to be
   // called by default. Unfortunately, this implies boxing until we can change it.
   protected void error(@Nullable Integer httpStatus, @Nullable Throwable error,
-      SpanCustomizer customizer) {
+    SpanCustomizer customizer) {
     if (error != null) {
       errorParser().error(error, customizer);
       return;

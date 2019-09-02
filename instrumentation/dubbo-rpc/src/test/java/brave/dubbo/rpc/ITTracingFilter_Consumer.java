@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.dubbo.rpc;
 
 import brave.ScopedSpan;
@@ -50,14 +63,14 @@ public class ITTracingFilter_Consumer extends ITTracingFilter {
 
     TraceContext context = server.takeRequest().context();
     assertThat(context.traceId())
-        .isEqualTo(parent.context().traceId());
+      .isEqualTo(parent.context().traceId());
     assertThat(context.parentId())
-        .isEqualTo(parent.context().spanId());
+      .isEqualTo(parent.context().spanId());
 
     // we report one in-process and one RPC client span
     assertThat(Arrays.asList(takeSpan(), takeSpan()))
-        .extracting(Span::kind)
-        .containsOnly(null, Span.Kind.CLIENT);
+      .extracting(Span::kind)
+      .containsOnly(null, Span.Kind.CLIENT);
   }
 
   /**
@@ -80,9 +93,9 @@ public class ITTracingFilter_Consumer extends ITTracingFilter {
       for (int i = 0; i < 2; i++) {
         TraceContext context = server.takeRequest().context();
         assertThat(context.traceId())
-            .isEqualTo(parent.context().traceId());
+          .isEqualTo(parent.context().traceId());
         assertThat(context.parentId())
-            .isEqualTo(parent.context().spanId());
+          .isEqualTo(parent.context().spanId());
       }
     } finally {
       otherSpan.finish();
@@ -90,8 +103,8 @@ public class ITTracingFilter_Consumer extends ITTracingFilter {
 
     // Check we reported 2 in-process spans and 2 client spans
     assertThat(Arrays.asList(takeSpan(), takeSpan(), takeSpan(), takeSpan()))
-        .extracting(Span::kind)
-        .containsOnly(null, Span.Kind.CLIENT);
+      .extracting(Span::kind)
+      .containsOnly(null, Span.Kind.CLIENT);
   }
 
   /** Unlike Brave 3, Brave 4 propagates trace ids even when unsampled */
@@ -110,7 +123,7 @@ public class ITTracingFilter_Consumer extends ITTracingFilter {
 
     Span span = takeSpan();
     assertThat(span.kind())
-        .isEqualTo(Span.Kind.CLIENT);
+      .isEqualTo(Span.Kind.CLIENT);
   }
 
   @Test public void defaultSpanNameIsMethodName() throws Exception {
@@ -118,7 +131,7 @@ public class ITTracingFilter_Consumer extends ITTracingFilter {
 
     Span span = takeSpan();
     assertThat(span.name())
-        .isEqualTo("greeterservice/sayhello");
+      .isEqualTo("greeterservice/sayhello");
   }
 
   @Test public void onTransportException_addsErrorTag() throws Exception {
@@ -132,7 +145,7 @@ public class ITTracingFilter_Consumer extends ITTracingFilter {
 
     Span span = takeSpan();
     assertThat(span.tags().get("error"))
-        .contains("RemotingException");
+      .contains("RemotingException");
   }
 
   @Test public void onTransportException_addsErrorTag_async() throws Exception {
@@ -142,7 +155,7 @@ public class ITTracingFilter_Consumer extends ITTracingFilter {
 
     Span span = takeSpan();
     assertThat(span.tags().get("error"))
-        .contains("RemotingException");
+      .contains("RemotingException");
   }
 
   @Test public void flushesSpanOneWay() throws Exception {
@@ -152,7 +165,7 @@ public class ITTracingFilter_Consumer extends ITTracingFilter {
 
     Span span = takeSpan();
     assertThat(span.duration())
-        .isNull();
+      .isNull();
   }
 
   @Test public void addsErrorTag_onUnimplemented() throws Exception {
@@ -169,8 +182,8 @@ public class ITTracingFilter_Consumer extends ITTracingFilter {
 
     Span span = takeSpan();
     assertThat(span.tags().get("dubbo.error_code"))
-        .isEqualTo("1");
+      .isEqualTo("1");
     assertThat(span.tags().get("error"))
-        .contains("Not found exported service");
+      .contains("Not found exported service");
   }
 }

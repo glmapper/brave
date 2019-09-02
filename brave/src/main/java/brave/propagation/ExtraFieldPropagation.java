@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.propagation;
 
 import brave.Tracing;
@@ -9,6 +22,7 @@ import brave.propagation.TraceContext.Extractor;
 import brave.propagation.TraceContext.Injector;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -37,7 +51,20 @@ import java.util.Set;
  * ExtraFieldPropagation.get("x-country-code", "FO");
  * }</pre>
  *
- * <p>You may also need to propagate a trace context you aren't using. For example, you may be in
+ * <h3>Appropriate usage</h3>
+ * It is generally not a good idea to use the tracing system for application logic or critical code
+ * such as security context propagation.
+ *
+ * <p>Brave is an infrastructure library: you will create lock-in if you expose its apis into
+ * business code. Prefer exposing your own types for utility functions that use this class as this
+ * will insulate you from lock-in.
+ *
+ * <p>While it may seem convenient, do not use this for security context propagation as it was not
+ * designed for this use case. For example, anything placed in here can be accessed by any code in
+ * the same classloader!
+ *
+ * <h3>Passing through alternate trace contexts</h3>
+ * <p>You may also need to propagate an second trace context transparently. For example, when in
  * an Amazon Web Services environment, but not reporting data to X-Ray. To ensure X-Ray can co-exist
  * correctly, pass-through its tracing header like so.
  *
@@ -47,6 +74,7 @@ import java.util.Set;
  * );
  * }</pre>
  *
+ * <h3>Prefixed fields</h3>
  * <p>You can also prefix fields, if they follow a common pattern. For example, the following will
  * propagate the field "x-vcap-request-id" as-is, but send the fields "country-code" and "user-id"
  * on the wire as "baggage-country-code" and "baggage-user-id" respectively.
@@ -75,16 +103,16 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
     if (delegate == null) throw new NullPointerException("delegate == null");
     if (fieldNames == null) throw new NullPointerException("fieldNames == null");
     String[] validated = ensureLowerCase(new LinkedHashSet<>(Arrays.asList(fieldNames)));
-    return new Factory(delegate, validated, validated);
+    return new Factory(delegate, validated, validated, new BitSet());
   }
 
   /** Wraps an underlying propagation implementation, pushing one or more fields */
   public static Factory newFactory(Propagation.Factory delegate,
-      Collection<String> fieldNames) {
+    Collection<String> fieldNames) {
     if (delegate == null) throw new NullPointerException("delegate == null");
     if (fieldNames == null) throw new NullPointerException("fieldNames == null");
     String[] validated = ensureLowerCase(new LinkedHashSet<>(fieldNames));
-    return new Factory(delegate, validated, validated);
+    return new Factory(delegate, validated, validated, new BitSet());
   }
 
   public static FactoryBuilder newFactoryBuilder(Propagation.Factory delegate) {
@@ -94,11 +122,20 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
   public static final class FactoryBuilder {
     final Propagation.Factory delegate;
     final Set<String> fieldNames = new LinkedHashSet<>();
+    final Set<String> redactedFieldNames = new LinkedHashSet<>();
     final Map<String, String[]> prefixedNames = new LinkedHashMap<>();
 
     FactoryBuilder(Propagation.Factory delegate) {
       if (delegate == null) throw new NullPointerException("delegate == null");
       this.delegate = delegate;
+    }
+
+    /** Same as {@link #addField} except that this field is redacted from downstream propagation. */
+    public FactoryBuilder addRedactedField(String fieldName) {
+      fieldName = validateFieldName(fieldName);
+      fieldNames.add(fieldName);
+      redactedFieldNames.add(fieldName);
+      return this;
     }
 
     /**
@@ -108,10 +145,7 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
      * <p>Note: {@code fieldName} will be implicitly lower-cased.
      */
     public FactoryBuilder addField(String fieldName) {
-      if (fieldName == null) throw new NullPointerException("fieldName == null");
-      fieldName = fieldName.trim();
-      if (fieldName.isEmpty()) throw new IllegalArgumentException("fieldName is empty");
-      fieldNames.add(fieldName.toLowerCase(Locale.ROOT));
+      fieldNames.add(validateFieldName(fieldName));
       return this;
     }
 
@@ -130,25 +164,24 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
     }
 
     public Factory build() {
-      if (prefixedNames.isEmpty()) {
-        String[] validated = ensureLowerCase(fieldNames);
-        return new Factory(delegate, validated, validated);
-      }
+      BitSet redacted = new BitSet();
       List<String> fields = new ArrayList<>(), keys = new ArrayList<>();
       List<Integer> keyToFieldList = new ArrayList<>();
-      if (!fieldNames.isEmpty()) {
-        List<String> validated = Arrays.asList(ensureLowerCase(fieldNames));
-        for (int i = 0, length = validated.size(); i < length; i++) {
-          String nextFieldName = validated.get(i);
-          fields.add(nextFieldName);
-          keys.add(nextFieldName);
-          keyToFieldList.add(i);
-        }
+
+      // First pass: add any field names that are used as propagation keys directly
+      int i = 0;
+      for (String fieldName : fieldNames) {
+        if (redactedFieldNames.contains(fieldName)) redacted.set(i); // flag to redact on inject
+        fields.add(fieldName);
+        keys.add(fieldName);
+        keyToFieldList.add(i++);
       }
+
+      // Second pass: add prefixed fields, noting a prefixed field could be a dupe of a non-prefixed
       for (Map.Entry<String, String[]> entry : prefixedNames.entrySet()) {
         String nextPrefix = entry.getKey();
         String[] nextFieldNames = entry.getValue();
-        for (int i = 0; i < nextFieldNames.length; i++) {
+        for (i = 0; i < nextFieldNames.length; i++) {
           String nextFieldName = nextFieldNames[i];
           int index = fields.indexOf(nextFieldName);
           if (index == -1) {
@@ -159,13 +192,15 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
           keyToFieldList.add(index);
         }
       }
-      int keysLength = keys.size();
-      int[] keyToField = new int[keysLength];
-      for (int i = 0; i < keysLength; i++) {
+
+      // Last pass: we may have multiple propagation keys pointing to the same field. Create an
+      // index so that an update a field mapped as "user-id" and "x-user-id" affect the same cell
+      int[] keyToField = new int[keys.size()];
+      for (i = 0; i < keyToField.length; i++) {
         keyToField[i] = keyToFieldList.get(i);
       }
       return new Factory(delegate, fields.toArray(new String[0]), keys.toArray(new String[0]),
-          keyToField);
+        keyToField, redacted);
     }
   }
 
@@ -242,10 +277,11 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
     final String[] fieldNames;
     final String[] keyNames;
     final int[] keyToField;
+    final BitSet redacted;
     final ExtraFactory extraFactory;
 
-    Factory(Propagation.Factory delegate, String[] fieldNames, String[] keyNames) {
-      this(delegate, fieldNames, keyNames, keyToField(keyNames));
+    Factory(Propagation.Factory delegate, String[] fieldNames, String[] keyNames, BitSet redacted) {
+      this(delegate, fieldNames, keyNames, keyToField(keyNames), redacted);
     }
 
     /**
@@ -259,11 +295,12 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
     }
 
     Factory(Propagation.Factory delegate, String[] fieldNames, String[] keyNames,
-        int[] keyToField) {
+      int[] keyToField, BitSet redacted) {
       this.delegate = delegate;
       this.keyToField = keyToField;
       this.fieldNames = fieldNames;
       this.keyNames = keyNames;
+      this.redacted = redacted;
       this.extraFactory = new ExtraFactory(fieldNames);
     }
 
@@ -282,7 +319,7 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
       for (int i = 0; i < length; i++) {
         keys.add(keyFactory.create(keyNames[i]));
       }
-      return new ExtraFieldPropagation<>(this, keyFactory, keys);
+      return new ExtraFieldPropagation<>(this, keyFactory, keys, redacted);
     }
 
     @Override public TraceContext decorate(TraceContext context) {
@@ -294,11 +331,14 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
   final Factory factory;
   final Propagation<K> delegate;
   final List<K> keys;
+  final BitSet redacted;
 
-  ExtraFieldPropagation(Factory factory, Propagation.KeyFactory<K> keyFactory, List<K> keys) {
+  ExtraFieldPropagation(Factory factory, Propagation.KeyFactory<K> keyFactory, List<K> keys,
+    BitSet redacted) {
     this.factory = factory;
     this.delegate = factory.delegate.create(keyFactory);
     this.keys = keys;
+    this.redacted = redacted;
   }
 
   /**
@@ -348,6 +388,7 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
 
     void inject(Extra fields, C carrier) {
       for (int i = 0, length = propagation.keys.size(); i < length; i++) {
+        if (propagation.redacted.get(i)) continue; // don't propagate downstream
         String maybeValue = fields.get(propagation.factory.keyToField[i]);
         if (maybeValue == null) continue;
         setter.put(carrier, propagation.keys.get(i), maybeValue);
@@ -431,5 +472,12 @@ public final class ExtraFieldPropagation<K> implements Propagation<K> {
   static String lowercase(String name) {
     if (name == null) throw new NullPointerException("name == null");
     return name.toLowerCase(Locale.ROOT);
+  }
+
+  static String validateFieldName(String fieldName) {
+    if (fieldName == null) throw new NullPointerException("fieldName == null");
+    fieldName = fieldName.toLowerCase(Locale.ROOT).trim();
+    if (fieldName.isEmpty()) throw new IllegalArgumentException("fieldName is empty");
+    return fieldName;
   }
 }

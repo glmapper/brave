@@ -1,12 +1,13 @@
-[![Build Status](https://travis-ci.org/openzipkin/brave.svg?branch=master)](https://travis-ci.org/openzipkin/brave)
-[![Maven Central](https://img.shields.io/maven-central/v/io.zipkin.brave/brave.svg)](https://maven-badges.herokuapp.com/maven-central/io.zipkin.brave/brave)
 [![Gitter chat](http://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg)](https://gitter.im/openzipkin/zipkin)
+[![Build Status](https://travis-ci.org/openzipkin/brave.svg?branch=master)](https://travis-ci.org/openzipkin/brave)
+[![Maven Central](https://img.shields.io/maven-central/v/io.zipkin.brave/brave.svg)](https://search.maven.org/search?q=g:io.zipkin.brave%20AND%20a:brave)
 
 # Brave
-Brave is a library used to capture latency information about distributed
-operations. It reports this data to [Zipkin](http://zipkin.io) as spans.
 
-Zipkin is based on [Dapper](http://research.google.com/pubs/pub36356.html). Dapper (dutch) = Brave (english)... So, that's where the name comes from.
+Brave is a distributed tracing instrumentation library. Brave typically intercepts production requests to gather timing data,
+correlate and propagate trace contexts. While typically trace data is sent to [Zipkin server](https://github.com/openzipkin/zipkin/tree/master/zipkin-server), third-party plugins are available to send to alternate services such as [Amazon X-Ray](https://github.com/openzipkin/zipkin-aws/tree/master/reporter-xray-udp).
+
+This repository includes dependency-free Java libraries and instrumentation for common components used in production services. For example, this includes trace filters for Servlet and log correlation for Apache Log4J.
 
 You can look at our [example project](https://github.com/openzipkin/brave-webmvc-example) for how to trace a simple web application.
 
@@ -18,7 +19,7 @@ and add tags that describe them. This library also includes code that
 parses `X-B3-TraceId` headers.
 
 Most users won't write tracing code directly. Rather, they reuse instrumentation
-others have written. Check our [instrumentation](instrumentation/) and [Zipkin's list](http://zipkin.io/pages/existing_instrumentations.html)
+others have written. Check our [instrumentation](instrumentation/) and [Zipkin's list](https://zipkin.io/pages/existing_instrumentations.html)
 before rolling your own. Common tracing libraries like JDBC, Servlet
 and Spring already exist. Instrumentation written here are tested and
 benchmarked.
@@ -59,10 +60,11 @@ test versions ranges to reduce the impact of this. For example, we test
 ## Artifacts
 All artifacts publish to the group ID "io.zipkin.brave". We use a common
 release version for all components.
+
 ### Library Releases
-Releases are uploaded to [Bintray](https://bintray.com/openzipkin/maven/brave) and synchronized to [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22io.zipkin.brave%22)
+Releases are uploaded to [Bintray](https://bintray.com/openzipkin/maven/zipkin) and synchronized to [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22io.zipkin.brave%22)
 ### Library Snapshots
-Snapshots are uploaded to [JFrog](http://oss.jfrog.org/artifactory/oss-snapshot-local) after commits to master.
+Snapshots are uploaded to [JFrog](https://oss.jfrog.org/artifactory/oss-snapshot-local) after commits to master.
 ### Version alignments
 When using multiple brave components, you'll want to align versions in
 one place. This allows you to more safely upgrade, with less worry about

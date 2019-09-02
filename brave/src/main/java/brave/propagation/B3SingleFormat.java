@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.propagation;
 
 import brave.internal.HexCodec;
@@ -39,7 +52,7 @@ import static brave.internal.InternalPropagation.FLAG_SAMPLED_SET;
  * Reminder: debug (previously {@code X-B3-Flags: 1}), is a boosted sample signal which is recorded
  * to ensure it reaches the collector tier. See {@link TraceContext#debug()}.
  *
- * <p>See <a href="https://github.com/openzipkin/b3-propagation">B3 Propagation</a>
+ * <p>See <a href="https://github.com/apache/incubator-zipkin-b3-propagation">B3 Propagation</a>
  */
 public final class B3SingleFormat {
   static final int FORMAT_MAX_LENGTH = 32 + 1 + 16 + 3 + 16; // traceid128-spanid-1-parentid
@@ -85,8 +98,8 @@ public final class B3SingleFormat {
   }
 
   /**
-   * Like {@link #writeB3SingleFormatAsBytes(TraceContext)}, but for carriers with byte array or
-   * byte buffer values. For example, {@link ByteBuffer#wrap(byte[])} can wrap the result.
+   * Like {@link #writeB3SingleFormat(TraceContext)}, but for carriers with byte array or byte
+   * buffer values. For example, {@link ByteBuffer#wrap(byte[])} can wrap the result.
    */
   public static byte[] writeB3SingleFormatAsBytes(TraceContext context) {
     char[] buffer = getCharBuffer();
@@ -132,7 +145,7 @@ public final class B3SingleFormat {
    */
   @Nullable
   public static TraceContextOrSamplingFlags parseB3SingleFormat(CharSequence b3, int beginIndex,
-      int endIndex) {
+    int endIndex) {
     if (beginIndex == endIndex) {
       Platform.get().log("Invalid input: empty", null);
       return null;
@@ -218,13 +231,13 @@ public final class B3SingleFormat {
     }
 
     return TraceContextOrSamplingFlags.create(new TraceContext(
-        flags,
-        traceIdHigh,
-        traceId,
-        0L, // localRootId is the first ID used in process, not necessarily the one extracted
-        parentId,
-        spanId,
-        Collections.emptyList()
+      flags,
+      traceIdHigh,
+      traceId,
+      0L, // localRootId is the first ID used in process, not necessarily the one extracted
+      parentId,
+      spanId,
+      Collections.emptyList()
     ));
   }
 
@@ -238,7 +251,7 @@ public final class B3SingleFormat {
     long parentId = tryParse16HexCharacters(b3, pos, endIndex);
     if (parentId == 0L) {
       Platform.get()
-          .log("Invalid input: expected a 16 lower hex parent ID at offset {0}", pos, null);
+        .log("Invalid input: expected a 16 lower hex parent ID at offset {0}", pos, null);
       return 0L;
     }
 

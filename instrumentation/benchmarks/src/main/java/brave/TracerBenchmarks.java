@@ -1,8 +1,22 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave;
 
 import brave.handler.FinishedSpanHandler;
 import brave.handler.MutableSpan;
 import brave.propagation.B3Propagation;
+import brave.propagation.CurrentTraceContext;
 import brave.propagation.ExtraFieldPropagation;
 import brave.propagation.Propagation;
 import brave.propagation.SamplingFlags;
@@ -36,46 +50,46 @@ import zipkin2.reporter.Reporter;
 @State(Scope.Benchmark)
 public class TracerBenchmarks {
   Propagation.Factory extraFactory = ExtraFieldPropagation.newFactory(
-      B3Propagation.FACTORY, "x-vcap-request-id");
+    B3Propagation.FACTORY, "x-vcap-request-id");
 
   TraceContext context =
-      TraceContext.newBuilder().traceIdHigh(333L).traceId(444L).spanId(3).sampled(true).build();
+    TraceContext.newBuilder().traceIdHigh(333L).traceId(444L).spanId(3).sampled(true).build();
   TraceContext contextExtra = extraFactory.decorate(context);
   TraceContext unsampledContext =
-      TraceContext.newBuilder().traceIdHigh(333L).traceId(444L).spanId(3).sampled(false).build();
+    TraceContext.newBuilder().traceIdHigh(333L).traceId(444L).spanId(3).sampled(false).build();
   TraceContext unsampledContextExtra = extraFactory.decorate(unsampledContext);
   TraceContext sampledLocalContext = unsampledContext.toBuilder().sampledLocal(true).build();
   TraceContext sampledLocalContextExtra = extraFactory.decorate(sampledLocalContext);
   TraceContextOrSamplingFlags extracted = TraceContextOrSamplingFlags.create(context);
   TraceContextOrSamplingFlags extractedExtra = TraceContextOrSamplingFlags.create(contextExtra);
   TraceContextOrSamplingFlags unsampledExtracted =
-      TraceContextOrSamplingFlags.create(SamplingFlags.NOT_SAMPLED);
+    TraceContextOrSamplingFlags.create(SamplingFlags.NOT_SAMPLED);
   TraceContextOrSamplingFlags unsampledExtractedExtra =
-      TraceContextOrSamplingFlags.newBuilder()
-          .samplingFlags(SamplingFlags.NOT_SAMPLED)
-          .addExtra(contextExtra.extra())
-          .build();
+    TraceContextOrSamplingFlags.newBuilder()
+      .samplingFlags(SamplingFlags.NOT_SAMPLED)
+      .addExtra(contextExtra.extra())
+      .build();
 
   Tracer tracer;
   Tracer tracerExtra;
 
   @Setup(Level.Trial) public void init() {
     tracer = Tracing.newBuilder()
-        .addFinishedSpanHandler(new FinishedSpanHandler() {
-          @Override public boolean handle(TraceContext context, MutableSpan span) {
-            return true; // anonymous subtype prevents all recording from being no-op
-          }
-        })
-        .spanReporter(Reporter.NOOP).build().tracer();
+      .addFinishedSpanHandler(new FinishedSpanHandler() {
+        @Override public boolean handle(TraceContext context, MutableSpan span) {
+          return true; // anonymous subtype prevents all recording from being no-op
+        }
+      })
+      .spanReporter(Reporter.NOOP).build().tracer();
     tracerExtra = Tracing.newBuilder()
-        .propagationFactory(ExtraFieldPropagation.newFactory(
-            B3Propagation.FACTORY, "x-vcap-request-id"))
-        .addFinishedSpanHandler(new FinishedSpanHandler() {
-          @Override public boolean handle(TraceContext context, MutableSpan span) {
-            return true; // anonymous subtype prevents all recording from being no-op
-          }
-        })
-        .spanReporter(Reporter.NOOP).build().tracer();
+      .propagationFactory(ExtraFieldPropagation.newFactory(
+        B3Propagation.FACTORY, "x-vcap-request-id"))
+      .addFinishedSpanHandler(new FinishedSpanHandler() {
+        @Override public boolean handle(TraceContext context, MutableSpan span) {
+          return true; // anonymous subtype prevents all recording from being no-op
+        }
+      })
+      .spanReporter(Reporter.NOOP).build().tracer();
   }
 
   @TearDown(Level.Trial) public void close() {
@@ -210,12 +224,31 @@ public class TracerBenchmarks {
     }
   }
 
+  @Benchmark public void currentSpan() {
+    currentSpan(tracer, extracted.context(), false);
+  }
+
+  @Benchmark public void currentSpan_tag() {
+    currentSpan(tracer, extracted.context(), true);
+  }
+
+  @Benchmark public void currentSpan_unsampled() {
+    currentSpan(tracer, unsampledExtracted.context(), false);
+  }
+
+  void currentSpan(Tracer tracer, TraceContext context, boolean tag) {
+    try (CurrentTraceContext.Scope scope = tracer.currentTraceContext.newScope(context)) {
+      Span span = tracer.currentSpan();
+      if (tag) span.tag("customer.id", "1234");
+    }
+  }
+
   // Convenience main entry-point
   public static void main(String[] args) throws Exception {
     Options opt = new OptionsBuilder()
-        .addProfiler("gc")
-        .include(".*" + TracerBenchmarks.class.getSimpleName())
-        .build();
+      .addProfiler("gc")
+      .include(".*" + TracerBenchmarks.class.getSimpleName())
+      .build();
 
     new Runner(opt).run();
   }

@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.jms;
 
 import java.util.concurrent.CountDownLatch;
@@ -21,17 +34,17 @@ public class ITJms_2_0_TracingMessageProducer extends ITJms_1_1_TracingMessagePr
 
   @Test public void should_complete_on_callback() throws Exception {
     should_complete_on_callback(
-        listener -> messageProducer.send(jms.destination, message, listener));
+      listener -> messageProducer.send(jms.destination, message, listener));
   }
 
   @Test public void should_complete_on_callback_queue() throws Exception {
     should_complete_on_callback(
-        listener -> queueSender.send(jms.queue, message, listener));
+      listener -> queueSender.send(jms.queue, message, listener));
   }
 
   @Test public void should_complete_on_callback_topic() throws Exception {
     should_complete_on_callback(
-        listener -> topicPublisher.send(jms.topic, message, listener));
+      listener -> topicPublisher.send(jms.topic, message, listener));
   }
 
   void should_complete_on_callback(JMSAsync async) throws Exception {

@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.handler;
 
 import brave.Span.Kind;
@@ -66,6 +79,24 @@ public final class MutableSpan implements Cloneable {
     // lazy initialize annotations
   }
 
+  /** Returns true if there was no data added. Usually this indicates an instrumentation bug. */
+  public boolean isEmpty() {
+    return kind == null
+      && !shared
+      && startTimestamp == 0L
+      && finishTimestamp == 0L
+      && name == null
+      && localServiceName == null
+      && localIp == null
+      && remoteServiceName == null
+      && remoteIp == null
+      && localPort == 0
+      && remotePort == 0
+      && tags.isEmpty()
+      && annotations == null
+      && error == null;
+  }
+
   /** Returns the {@link brave.Span#name(String) span name} or null */
   @Nullable public String name() {
     return name;
@@ -132,7 +163,7 @@ public final class MutableSpan implements Cloneable {
   /** @see #localIp() */
   public boolean localIp(@Nullable String localIp) {
     this.localIp = IpLiteral.ipOrNull(localIp);
-    return true;
+    return localIp != null;
   }
 
   /** When zero {@link brave.Tracing.Builder#localIp(String) default} will be used for zipkin. */
@@ -189,6 +220,17 @@ public final class MutableSpan implements Cloneable {
     if (remotePort < 0) remotePort = 0;
     this.remotePort = remotePort;
     return true;
+  }
+
+  /** Returns true if an annotation with the given value exists in this span. */
+  public boolean containsAnnotation(String value) {
+    if (value == null) throw new NullPointerException("value == null");
+    if (annotations == null) return false;
+
+    for (int i = 0, length = annotations.size(); i < length; i += 2) {
+      if (value.equals(annotations.get(i+1))) return true;
+    }
+    return false;
   }
 
   /** @see brave.Span#annotate(String) */

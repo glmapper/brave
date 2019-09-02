@@ -1,10 +1,25 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.httpclient;
 
 import brave.Span;
+import brave.internal.Nullable;
 import java.net.InetAddress;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
+import org.apache.http.StatusLine;
 import org.apache.http.client.methods.HttpRequestWrapper;
 
 final class HttpAdapter extends brave.http.HttpClientAdapter<HttpRequestWrapper, HttpResponse> {
@@ -29,12 +44,14 @@ final class HttpAdapter extends brave.http.HttpClientAdapter<HttpRequestWrapper,
     return result != null ? result.getValue() : null;
   }
 
-  @Override public Integer statusCode(HttpResponse response) {
-    return statusCodeAsInt(response);
+  @Override @Nullable public Integer statusCode(HttpResponse response) {
+    int result = statusCodeAsInt(response);
+    return result != 0 ? result : null;
   }
 
   @Override public int statusCodeAsInt(HttpResponse response) {
-    return response.getStatusLine().getStatusCode();
+    StatusLine statusLine = response.getStatusLine();
+    return statusLine != null ? statusLine.getStatusCode() : 0;
   }
 
   static void parseTargetAddress(HttpRequestWrapper httpRequest, Span span) {

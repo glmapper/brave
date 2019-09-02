@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 The OpenZipkin Authors
+ * Copyright 2013-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -11,7 +11,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-
 package brave.mysql8;
 
 import brave.Span;
@@ -32,9 +31,9 @@ public class TracingExceptionInterceptor implements ExceptionInterceptor {
   @Override public ExceptionInterceptor init(Properties properties, Log log) {
     String queryInterceptors = properties.getProperty("queryInterceptors");
     if (queryInterceptors == null ||
-        !queryInterceptors.contains(TracingQueryInterceptor.class.getName())) {
+      !queryInterceptors.contains(TracingQueryInterceptor.class.getName())) {
       throw new IllegalStateException(
-          "TracingQueryInterceptor must be enabled to use TracingExceptionInterceptor.");
+        "TracingQueryInterceptor must be enabled to use TracingExceptionInterceptor.");
     }
     return new TracingExceptionInterceptor();
   }
@@ -45,8 +44,8 @@ public class TracingExceptionInterceptor implements ExceptionInterceptor {
 
   /**
    * Uses {@link ThreadLocalSpan} as there's no attribute namespace shared between callbacks, but
-   * all callbacks happen on the same thread. The span will already have been created in
-   * {@link TracingQueryInterceptor}.
+   * all callbacks happen on the same thread. The span will already have been created in {@link
+   * TracingQueryInterceptor}.
    *
    * <p>Uses {@link ThreadLocalSpan#CURRENT_TRACER} and this interceptor initializes before
    * tracing.

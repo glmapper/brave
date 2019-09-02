@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave;
 
 import brave.internal.Nullable;
@@ -89,8 +102,8 @@ public abstract class Span implements SpanCustomizer {
   @Override public abstract Span name(String name);
 
   /**
-   * When present, the span is remote. This value clarifies how to interpret
-   * {@link #remoteServiceName(String)} and {@link #remoteIpAndPort(String, int)}.
+   * When present, the span is remote. This value clarifies how to interpret {@link
+   * #remoteServiceName(String)} and {@link #remoteIpAndPort(String, int)}.
    *
    * <p>Note: This affects Zipkin v1 format even if that format does not have a "kind" field. For
    * example, if kind is {@link Kind#SERVER} and reported in v1 Zipkin format, the span's start
@@ -118,8 +131,8 @@ public abstract class Span implements SpanCustomizer {
   public abstract Span error(Throwable throwable);
 
   /**
-   * @deprecated Use {@link #remoteServiceName(String)} {@link #remoteIpAndPort(String, int)}.
-   * Will be removed in Brave v6.
+   * @deprecated Use {@link #remoteServiceName(String)} {@link #remoteIpAndPort(String, int)}. Will
+   * be removed in Brave v6.
    */
   @Deprecated public Span remoteEndpoint(Endpoint endpoint) {
     if (endpoint == null) return this;
@@ -179,7 +192,7 @@ public abstract class Span implements SpanCustomizer {
   /**
    * Like {@link #finish()}, except with a given timestamp in microseconds.
    *
-   * <p>{@link zipkin2.Span#duration Zipkin's span duration} is derived by subtracting the start
+   * <p>{@link zipkin2.Span#duration() Zipkin's span duration} is derived by subtracting the start
    * timestamp from this, and set when appropriate.
    *
    * <p>Take extreme care with this feature as it is easy to have incorrect timestamps. If you must
@@ -187,7 +200,7 @@ public abstract class Span implements SpanCustomizer {
    */
   // Design note: This differs from Brave 3's LocalTracer which completes with a given duration.
   // This was changed for a few use cases.
-  // * Finishing a one-way span on another host https://github.com/openzipkin/zipkin/issues/1243
+  // * Finishing a one-way span on another host https://github.com/apache/incubator-zipkin/issues/1243
   //   * The other host will not be able to read the start timestamp, so can't calculate duration
   // * Consistency in Api: All units and measures are epoch microseconds
   //   * This can reduce accidents where people use duration when they mean a timestamp

@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.propagation;
 
 import brave.context.log4j2.ThreadContextScopeDecorator;
@@ -26,19 +39,19 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 public class CurrentTraceContextBenchmarks {
   static final CurrentTraceContext base = ThreadLocalCurrentTraceContext.create();
   static final CurrentTraceContext log4j2 = ThreadLocalCurrentTraceContext.newBuilder()
-      .addScopeDecorator(ThreadContextScopeDecorator.create())
-      .build();
+    .addScopeDecorator(ThreadContextScopeDecorator.create())
+    .build();
 
   static final TraceContext context = TraceContext.newBuilder()
-      .traceIdHigh(HexCodec.lowerHexToUnsignedLong("67891233abcdef012345678912345678"))
-      .traceId(HexCodec.lowerHexToUnsignedLong("2345678912345678"))
-      .spanId(HexCodec.lowerHexToUnsignedLong("463ac35c9f6413ad"))
-      .build();
+    .traceIdHigh(HexCodec.lowerHexToUnsignedLong("67891233abcdef012345678912345678"))
+    .traceId(HexCodec.lowerHexToUnsignedLong("2345678912345678"))
+    .spanId(HexCodec.lowerHexToUnsignedLong("463ac35c9f6413ad"))
+    .build();
 
   static final TraceContext contextWithParent = context.toBuilder()
-      .parentId(context.spanId())
-      .spanId(HexCodec.lowerHexToUnsignedLong("e64ac35c9f641ea3"))
-      .build();
+    .parentId(context.spanId())
+    .spanId(HexCodec.lowerHexToUnsignedLong("e64ac35c9f641ea3"))
+    .build();
 
   final CurrentTraceContext.Scope log4j2Scope = log4j2.newScope(context);
 
@@ -109,9 +122,9 @@ public class CurrentTraceContextBenchmarks {
   // Convenience main entry-point
   public static void main(String[] args) throws Exception {
     Options opt = new OptionsBuilder()
-        .addProfiler("gc")
-        .include(".*" + CurrentTraceContextBenchmarks.class.getSimpleName())
-        .build();
+      .addProfiler("gc")
+      .include(".*" + CurrentTraceContextBenchmarks.class.getSimpleName())
+      .build();
 
     new Runner(opt).run();
   }

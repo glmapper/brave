@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.mysql;
 
 import brave.Span;
@@ -28,7 +41,7 @@ public class TracingStatementInterceptor implements StatementInterceptorV2 {
    */
   @Override
   public ResultSetInternalMethods preProcess(String sql, Statement interceptedStatement,
-      Connection connection) {
+    Connection connection) {
     // Gets the next span (and places it in scope) so code between here and postProcess can read it
     Span span = ThreadLocalSpan.CURRENT_TRACER.next();
     if (span == null || span.isNoop()) return null;
@@ -47,8 +60,8 @@ public class TracingStatementInterceptor implements StatementInterceptorV2 {
 
   @Override
   public ResultSetInternalMethods postProcess(String sql, Statement interceptedStatement,
-      ResultSetInternalMethods originalResultSet, Connection connection, int warningCount,
-      boolean noIndexUsed, boolean noGoodIndexUsed, SQLException statementException) {
+    ResultSetInternalMethods originalResultSet, Connection connection, int warningCount,
+    boolean noIndexUsed, boolean noGoodIndexUsed, SQLException statementException) {
     Span span = ThreadLocalSpan.CURRENT_TRACER.remove();
     if (span == null || span.isNoop()) return null;
 

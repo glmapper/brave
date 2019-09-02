@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.internal;
 
 // code originally imported from zipkin.Util
@@ -47,14 +60,14 @@ public final class HexCodec {
 
   static NumberFormatException isntLowerHexLong(CharSequence lowerHex) {
     throw new NumberFormatException(
-        lowerHex + " should be a 1 to 32 character lower-hex string with no prefix");
+      lowerHex + " should be a 1 to 32 character lower-hex string with no prefix");
   }
 
   /** Inspired by {@code okio.Buffer.writeLong} */
   public static String toLowerHex(long v) {
-    char[] data = new char[16];
+    char[] data = RecyclableBuffers.idBuffer();
     writeHexLong(data, 0, v);
-    return new String(data);
+    return new String(data, 0, 16);
   }
 
   /** Inspired by {@code okio.Buffer.writeLong} */
@@ -70,7 +83,7 @@ public final class HexCodec {
   }
 
   static final char[] HEX_DIGITS =
-      {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
   static void writeHexByte(char[] data, int pos, byte b) {
     data[pos + 0] = HEX_DIGITS[(b >> 4) & 0xf];

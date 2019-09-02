@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.features.handler;
 
 import brave.handler.FinishedSpanHandler;
@@ -49,8 +62,8 @@ public class MetricsFinishedSpanHandler extends FinishedSpanHandler {
 
     // Look or create up a timer that records duration against
     registry.timer(metricName, Arrays.asList(nameTag, errorTag))
-        // Timestamps are derived from a function of clock time and nanos offset
-        .record(span.finishTimestamp() - span.startTimestamp(), TimeUnit.MICROSECONDS);
+      // Timestamps are derived from a function of clock time and nanos offset
+      .record(span.finishTimestamp() - span.startTimestamp(), TimeUnit.MICROSECONDS);
     return true;
   }
 
@@ -58,7 +71,7 @@ public class MetricsFinishedSpanHandler extends FinishedSpanHandler {
     if (exception == null) return EXCEPTION_NONE;
     String simpleName = exception.getClass().getSimpleName();
     return Tag.of("exception",
-        // check hasText as the class could be anonymous
-        StringUtils.hasText(simpleName) ? simpleName : exception.getClass().getName());
+      // check hasText as the class could be anonymous
+      StringUtils.hasText(simpleName) ? simpleName : exception.getClass().getName());
   }
 }

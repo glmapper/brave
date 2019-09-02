@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.sampler;
 
 import brave.internal.Nullable;
@@ -74,8 +87,8 @@ public final class DeclarativeSampler<M> {
   }
 
   /**
-   * Like {@link #toSampler(Object)}, except allows a fallback decision, usually from
-   * {@link brave.Tracing#sampler()}, when there was no rate for an input
+   * Like {@link #toSampler(Object)}, except allows a fallback decision, usually from {@link
+   * brave.Tracing#sampler()}, when there was no rate for an input
    *
    * <p>Ex:
    * <pre>{@code
@@ -122,8 +135,8 @@ public final class DeclarativeSampler<M> {
 
   private SamplingFlags sample(Sampler sampler) {
     return sampler.isSampled(0L) // counting sampler ignores the input
-        ? SamplingFlags.SAMPLED
-        : SamplingFlags.NOT_SAMPLED;
+      ? SamplingFlags.SAMPLED
+      : SamplingFlags.NOT_SAMPLED;
   }
 
   /** Prevents us from recomputing a method that had no configured factory */

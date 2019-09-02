@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.kafka.clients;
 
 import java.time.Duration;
@@ -40,18 +53,18 @@ public class TracingConsumerTest extends BaseTracingTest {
 
     // name is correct
     assertThat(spans)
-        .extracting(Span::name)
-        .containsExactly("poll");
+      .extracting(Span::name)
+      .containsExactly("poll");
 
     // kind is correct
     assertThat(spans)
-        .extracting(Span::kind)
-        .containsExactly(Span.Kind.CONSUMER);
+      .extracting(Span::kind)
+      .containsExactly(Span.Kind.CONSUMER);
 
     // tags are correct
     assertThat(spans)
-        .flatExtracting(s -> s.tags().entrySet())
-        .containsOnly(entry("kafka.topic", "myTopic"));
+      .flatExtracting(s -> s.tags().entrySet())
+      .containsOnly(entry("kafka.topic", "myTopic"));
   }
 
   @Test
@@ -65,18 +78,18 @@ public class TracingConsumerTest extends BaseTracingTest {
 
     // name is correct
     assertThat(spans)
-        .extracting(Span::name)
-        .containsExactly("poll");
+      .extracting(Span::name)
+      .containsExactly("poll");
 
     // kind is correct
     assertThat(spans)
-        .extracting(Span::kind)
-        .containsExactly(Span.Kind.CONSUMER);
+      .extracting(Span::kind)
+      .containsExactly(Span.Kind.CONSUMER);
 
     // tags are correct
     assertThat(spans)
-        .flatExtracting(s -> s.tags().entrySet())
-        .containsOnly(entry("kafka.topic", "myTopic"));
+      .flatExtracting(s -> s.tags().entrySet())
+      .containsOnly(entry("kafka.topic", "myTopic"));
   }
 
   @Test
@@ -87,10 +100,10 @@ public class TracingConsumerTest extends BaseTracingTest {
     ConsumerRecords<String, String> poll = tracingConsumer.poll(10);
 
     assertThat(poll)
-        .extracting(ConsumerRecord::headers)
-        .flatExtracting(TracingConsumerTest::lastHeaders)
-        .extracting(Map.Entry::getKey)
-        .contains("X-B3-TraceId", "X-B3-SpanId");
+      .extracting(ConsumerRecord::headers)
+      .flatExtracting(TracingConsumerTest::lastHeaders)
+      .extracting(Map.Entry::getKey)
+      .contains("X-B3-TraceId", "X-B3-SpanId");
   }
 
   @Test
@@ -102,9 +115,9 @@ public class TracingConsumerTest extends BaseTracingTest {
     ConsumerRecords<String, String> poll = tracingConsumer.poll(10);
 
     assertThat(poll)
-        .extracting(ConsumerRecord::headers)
-        .flatExtracting(TracingConsumerTest::lastHeaders)
-        .contains(entry("X-B3-TraceId", TRACE_ID), entry("X-B3-ParentSpanId", SPAN_ID));
+      .extracting(ConsumerRecord::headers)
+      .flatExtracting(TracingConsumerTest::lastHeaders)
+      .contains(entry("X-B3-TraceId", TRACE_ID), entry("X-B3-ParentSpanId", SPAN_ID));
   }
 
   @Test
@@ -128,8 +141,8 @@ public class TracingConsumerTest extends BaseTracingTest {
 
     // only one consumer span reported
     assertThat(spans)
-        .hasSize(1)
-        .flatExtracting(s -> s.tags().entrySet())
-        .containsOnly(entry("kafka.topic", "myTopic"));
+      .hasSize(1)
+      .flatExtracting(s -> s.tags().entrySet())
+      .containsOnly(entry("kafka.topic", "myTopic"));
   }
 }

@@ -33,7 +33,7 @@ httpTracing = httpTracing.toBuilder()
       @Override
       public <Req> void request(HttpAdapter<Req, ?> adapter, Req req, SpanCustomizer customizer) {
         customizer.name(spanName(adapter, req)); // default span name
-        customizer.tag(TraceKeys.HTTP_URL, adapter.url(req)); // the whole url, not just the path
+        customizer.tag("http.url", adapter.url(req)); // the whole url, not just the path
       }
     })
     .build();
@@ -126,7 +126,7 @@ reasons including sharing the span name as a metrics correlation field.
 
 # Developing new instrumentation
 
-Check for [instrumentation written here](../) and [Zipkin's list](http://zipkin.io/pages/existing_instrumentations.html)
+Check for [instrumentation written here](../) and [Zipkin's list](https://zipkin.io/pages/existing_instrumentations.html)
 before rolling your own Http instrumentation! Besides documentation here,
 you should look at the [core library documentation](../../brave/README.md) as it
 covers topics including propagation. You may find our [feature tests](src/test/java/brave/http/features) helpful, too.

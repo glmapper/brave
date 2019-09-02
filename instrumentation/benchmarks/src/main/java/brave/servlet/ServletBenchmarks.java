@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.servlet;
 
 import brave.Tracing;
@@ -31,7 +44,7 @@ public class ServletBenchmarks extends HttpServerBenchmarks {
 
   static class HelloServlet extends HttpServlet {
     @Override protected void doGet(HttpServletRequest req, HttpServletResponse resp)
-        throws IOException {
+      throws IOException {
       // noop if not configured
       ExtraFieldPropagation.set("country-code", "FO");
       resp.addHeader("Content-Type", "text/plain; charset=UTF-8");
@@ -42,7 +55,7 @@ public class ServletBenchmarks extends HttpServerBenchmarks {
   public static class Unsampled extends ForwardingTracingFilter {
     public Unsampled() {
       super(TracingFilter.create(
-          Tracing.newBuilder().sampler(Sampler.NEVER_SAMPLE).spanReporter(Reporter.NOOP).build()
+        Tracing.newBuilder().sampler(Sampler.NEVER_SAMPLE).spanReporter(Reporter.NOOP).build()
       ));
     }
   }
@@ -56,47 +69,47 @@ public class ServletBenchmarks extends HttpServerBenchmarks {
   public static class TracedExtra extends ForwardingTracingFilter {
     public TracedExtra() {
       super(TracingFilter.create(Tracing.newBuilder()
-          .propagationFactory(ExtraFieldPropagation.newFactoryBuilder(B3Propagation.FACTORY)
-              .addField("x-vcap-request-id")
-              .addPrefixedFields("baggage-", Arrays.asList("country-code", "user-id"))
-              .build()
-          )
-          .spanReporter(Reporter.NOOP)
-          .build()));
+        .propagationFactory(ExtraFieldPropagation.newFactoryBuilder(B3Propagation.FACTORY)
+          .addField("x-vcap-request-id")
+          .addPrefixedFields("baggage-", Arrays.asList("country-code", "user-id"))
+          .build()
+        )
+        .spanReporter(Reporter.NOOP)
+        .build()));
     }
   }
 
   public static class Traced128 extends ForwardingTracingFilter {
     public Traced128() {
       super(TracingFilter.create(
-          Tracing.newBuilder().traceId128Bit(true).spanReporter(Reporter.NOOP).build()));
+        Tracing.newBuilder().traceId128Bit(true).spanReporter(Reporter.NOOP).build()));
     }
   }
 
   @Override protected void init(DeploymentInfo servletBuilder) {
     addFilterMappings(servletBuilder);
     servletBuilder.addServlets(
-        Servlets.servlet("HelloServlet", HelloServlet.class).addMapping("/*")
+      Servlets.servlet("HelloServlet", HelloServlet.class).addMapping("/*")
     );
   }
 
   public static void addFilterMappings(DeploymentInfo servletBuilder) {
     servletBuilder.addFilter(new FilterInfo("Unsampled", Unsampled.class))
-        .addFilterUrlMapping("Unsampled", "/unsampled", REQUEST)
-        .addFilter(new FilterInfo("Traced", Traced.class))
-        .addFilterUrlMapping("Traced", "/traced", REQUEST)
-        .addFilter(new FilterInfo("TracedExtra", TracedExtra.class))
-        .addFilterUrlMapping("TracedExtra", "/tracedextra", REQUEST)
-        .addFilter(new FilterInfo("Traced128", Traced128.class))
-        .addFilterUrlMapping("Traced128", "/traced128", REQUEST);
+      .addFilterUrlMapping("Unsampled", "/unsampled", REQUEST)
+      .addFilter(new FilterInfo("Traced", Traced.class))
+      .addFilterUrlMapping("Traced", "/traced", REQUEST)
+      .addFilter(new FilterInfo("TracedExtra", TracedExtra.class))
+      .addFilterUrlMapping("TracedExtra", "/tracedextra", REQUEST)
+      .addFilter(new FilterInfo("Traced128", Traced128.class))
+      .addFilterUrlMapping("Traced128", "/traced128", REQUEST);
   }
 
   // Convenience main entry-point
   public static void main(String[] args) throws RunnerException {
     Options opt = new OptionsBuilder()
-        .addProfiler("gc")
-        .include(".*" + ServletBenchmarks.class.getSimpleName() + ".*")
-        .build();
+      .addProfiler("gc")
+      .include(".*" + ServletBenchmarks.class.getSimpleName() + ".*")
+      .build();
 
     new Runner(opt).run();
   }
@@ -112,7 +125,7 @@ public class ServletBenchmarks extends HttpServerBenchmarks {
     }
 
     @Override public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse,
-        FilterChain filterChain) throws IOException, ServletException {
+      FilterChain filterChain) throws IOException, ServletException {
       delegate.doFilter(servletRequest, servletResponse, filterChain);
     }
 

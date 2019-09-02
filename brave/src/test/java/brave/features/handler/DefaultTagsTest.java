@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.features.handler;
 
 import brave.ScopedSpan;
@@ -20,18 +33,18 @@ import static org.assertj.core.api.Assertions.entry;
 public class DefaultTagsTest {
   List<zipkin2.Span> spans = new ArrayList<>();
   Tracing tracing = Tracing.newBuilder()
-      .addFinishedSpanHandler(new FinishedSpanHandler() {
-        @Override public boolean handle(TraceContext context, MutableSpan span) {
-          if (context.isLocalRoot()) {
-            // pretend these are sourced from the environment
-            span.tag("env", "prod");
-            span.tag("region", "east");
-          }
-          return true;
+    .addFinishedSpanHandler(new FinishedSpanHandler() {
+      @Override public boolean handle(TraceContext context, MutableSpan span) {
+        if (context.isLocalRoot()) {
+          // pretend these are sourced from the environment
+          span.tag("env", "prod");
+          span.tag("region", "east");
         }
-      })
-      .spanReporter(spans::add)
-      .build();
+        return true;
+      }
+    })
+    .spanReporter(spans::add)
+    .build();
 
   @After public void close() {
     tracing.close();
@@ -50,8 +63,8 @@ public class DefaultTagsTest {
 
     assertThat(spans.get(1).name()).isEqualTo("parent");
     assertThat(spans.get(1).tags()).containsExactly(
-        entry("env", "prod"),
-        entry("region", "east")
+      entry("env", "prod"),
+      entry("region", "east")
     );
   }
 }

@@ -1,9 +1,23 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.jms;
 
 import brave.ScopedSpan;
 import brave.propagation.TraceContext;
 import java.util.Collections;
 import java.util.Map;
+import javax.jms.BytesMessage;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
@@ -23,6 +37,7 @@ import org.junit.Test;
 import org.junit.rules.TestName;
 import zipkin2.Span;
 
+import static brave.jms.JmsTracing.SETTER;
 import static brave.propagation.B3SingleFormat.writeB3SingleFormat;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -44,6 +59,8 @@ public class ITJms_1_1_TracingMessageProducer extends JmsTest {
   TopicSubscriber topicSubscriber;
 
   TextMessage message;
+  BytesMessage bytesMessage;
+
   Map<String, String> existingProperties = Collections.singletonMap("tx", "1");
 
   JmsTestRule newJmsTestRule(TestName testName) {
@@ -52,11 +69,11 @@ public class ITJms_1_1_TracingMessageProducer extends JmsTest {
 
   @Before public void setup() throws Exception {
     tracedSession = jmsTracing.connection(jms.connection)
-        .createSession(false, Session.AUTO_ACKNOWLEDGE);
+      .createSession(false, Session.AUTO_ACKNOWLEDGE);
     tracedQueueSession = jmsTracing.queueConnection(jms.queueConnection)
-        .createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
+      .createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
     tracedTopicSession = jmsTracing.topicConnection(jms.topicConnection)
-        .createTopicSession(false, Session.AUTO_ACKNOWLEDGE);
+      .createTopicSession(false, Session.AUTO_ACKNOWLEDGE);
 
     messageProducer = tracedSession.createProducer(null /* to test explicit destination */);
     messageConsumer = jms.session.createConsumer(jms.destination);
@@ -69,10 +86,12 @@ public class ITJms_1_1_TracingMessageProducer extends JmsTest {
 
     message = jms.newMessage("foo");
     for (Map.Entry<String, String> existingProperty : existingProperties.entrySet()) {
-      message.setStringProperty(existingProperty.getKey(), existingProperty.getValue());
+      SETTER.put(message, existingProperty.getKey(), existingProperty.getValue());
     }
-    // this forces us to handle JMS write concerns!
-    jms.setReadOnlyProperties(message, true);
+    bytesMessage = jms.newBytesMessage("foo");
+    for (Map.Entry<String, String> existingProperty : existingProperties.entrySet()) {
+      SETTER.put(bytesMessage, existingProperty.getKey(), existingProperty.getValue());
+    }
   }
 
   @After public void tearDownTraced() throws JMSException {
@@ -83,6 +102,11 @@ public class ITJms_1_1_TracingMessageProducer extends JmsTest {
 
   @Test public void should_add_b3_single_property() throws Exception {
     messageProducer.send(jms.destination, message);
+    assertHasB3SingleProperty(messageConsumer.receive());
+  }
+
+  @Test public void should_add_b3_single_property_bytes() throws Exception {
+    messageProducer.send(jms.destination, bytesMessage);
     assertHasB3SingleProperty(messageConsumer.receive());
   }
 
@@ -100,8 +124,8 @@ public class ITJms_1_1_TracingMessageProducer extends JmsTest {
     Span producerSpan = takeSpan();
 
     assertThat(propertiesToMap(received))
-        .containsAllEntriesOf(existingProperties)
-        .containsEntry("b3", producerSpan.traceId() + "-" + producerSpan.id() + "-1");
+      .containsAllEntriesOf(existingProperties)
+      .containsEntry("b3", producerSpan.traceId() + "-" + producerSpan.id() + "-1");
   }
 
   @Test public void should_not_serialize_parent_span_id() throws Exception {
@@ -117,14 +141,14 @@ public class ITJms_1_1_TracingMessageProducer extends JmsTest {
     assertThat(producerSpan.parentId()).isEqualTo(parentSpan.id());
 
     assertThat(propertiesToMap(received))
-        .containsAllEntriesOf(existingProperties)
-        .containsEntry("b3", producerSpan.traceId() + "-" + producerSpan.id() + "-1");
+      .containsAllEntriesOf(existingProperties)
+      .containsEntry("b3", producerSpan.traceId() + "-" + producerSpan.id() + "-1");
   }
 
   @Test public void should_prefer_current_to_stale_b3_header() throws Exception {
     jms.setReadOnlyProperties(message, false);
-    message.setStringProperty("b3",
-        writeB3SingleFormat(TraceContext.newBuilder().traceId(1).spanId(1).build()));
+    SETTER.put(message, "b3",
+      writeB3SingleFormat(TraceContext.newBuilder().traceId(1).spanId(1).build()));
 
     ScopedSpan parent = tracing.tracer().startScopedSpan("main");
     try {
@@ -138,8 +162,8 @@ public class ITJms_1_1_TracingMessageProducer extends JmsTest {
     assertThat(producerSpan.parentId()).isEqualTo(parentSpan.id());
 
     assertThat(propertiesToMap(received))
-        .containsAllEntriesOf(existingProperties)
-        .containsEntry("b3", producerSpan.traceId() + "-" + producerSpan.id() + "-1");
+      .containsAllEntriesOf(existingProperties)
+      .containsEntry("b3", producerSpan.traceId() + "-" + producerSpan.id() + "-1");
   }
 
   @Test public void should_record_properties() throws Exception {

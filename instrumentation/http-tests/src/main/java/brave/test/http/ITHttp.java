@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.test.http;
 
 import brave.Tracing;
@@ -50,9 +63,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@link brave.Span#finish()}).
  *
  * <p>If a test fails on {@link After}, it can mean that your test created a span, but didn't
- * {@link
- * BlockingQueue#take()} it off the queue. If you are testing something that creates a span, you may
- * not want to verify each one. In this case, at least take them similar to below:
+ * {@link BlockingQueue#take()} it off the queue. If you are testing something that creates a span,
+ * you may not want to verify each one. In this case, at least take them similar to below:
  *
  * <p><pre>{@code
  * for (int i = 0; i < 10; i++) takeSpan(); // we expected 10 spans
@@ -94,17 +106,17 @@ public abstract class ITHttp {
   protected Span takeSpan() throws InterruptedException {
     Span result = spans.poll(3, TimeUnit.SECONDS);
     assertThat(result)
-        .withFailMessage("Span was not reported")
-        .isNotNull();
+      .withFailMessage("Span was not reported")
+      .isNotNull();
     assertThat(result.annotations())
-        .extracting(Annotation::value)
-        .doesNotContain(CONTEXT_LEAK);
+      .extracting(Annotation::value)
+      .doesNotContain(CONTEXT_LEAK);
     return result;
   }
 
   protected CurrentTraceContext currentTraceContext = ThreadLocalCurrentTraceContext.newBuilder()
-      .addScopeDecorator(StrictScopeDecorator.create())
-      .build();
+    .addScopeDecorator(StrictScopeDecorator.create())
+    .build();
   protected HttpTracing httpTracing;
 
   /**
@@ -126,35 +138,36 @@ public abstract class ITHttp {
     @Override protected void succeeded(Description description) {
       try {
         assertThat(spans.poll(100, TimeUnit.MILLISECONDS))
-            .withFailMessage("Span remaining in queue. Check for redundant reporting")
-            .isNull();
+          .withFailMessage("Span remaining in queue. Check for redundant reporting")
+          .isNull();
       } catch (InterruptedException e) {
-        e.printStackTrace();
+        Thread.currentThread().interrupt();
+        throw new AssertionError(e);
       }
     }
   };
 
   protected Tracing.Builder tracingBuilder(Sampler sampler) {
     return Tracing.newBuilder()
-        .spanReporter(s -> {
-          // make sure the context was cleared prior to finish.. no leaks!
-          TraceContext current = httpTracing.tracing().currentTraceContext().get();
-          boolean contextLeak = false;
-          if (current != null) {
-            // add annotation in addition to throwing, in case we are off the main thread
-            if (current.spanIdString().equals(s.id())) {
-              s = s.toBuilder().addAnnotation(s.timestampAsLong(), CONTEXT_LEAK).build();
-              contextLeak = true;
-            }
+      .spanReporter(s -> {
+        // make sure the context was cleared prior to finish.. no leaks!
+        TraceContext current = httpTracing.tracing().currentTraceContext().get();
+        boolean contextLeak = false;
+        if (current != null) {
+          // add annotation in addition to throwing, in case we are off the main thread
+          if (current.spanIdString().equals(s.id())) {
+            s = s.toBuilder().addAnnotation(s.timestampAsLong(), CONTEXT_LEAK).build();
+            contextLeak = true;
           }
-          spans.add(s);
-          // throw so that we can see the path to the code that leaked the context
-          if (contextLeak) {
-            throw new AssertionError(CONTEXT_LEAK + " on " + Thread.currentThread().getName());
-          }
-        })
-        .propagationFactory(ExtraFieldPropagation.newFactory(B3Propagation.FACTORY, EXTRA_KEY))
-        .currentTraceContext(currentTraceContext)
-        .sampler(sampler);
+        }
+        spans.add(s);
+        // throw so that we can see the path to the code that leaked the context
+        if (contextLeak) {
+          throw new AssertionError(CONTEXT_LEAK + " on " + Thread.currentThread().getName());
+        }
+      })
+      .propagationFactory(ExtraFieldPropagation.newFactory(B3Propagation.FACTORY, EXTRA_KEY))
+      .currentTraceContext(currentTraceContext)
+      .sampler(sampler);
   }
 }

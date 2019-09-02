@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.mysql;
 
 import brave.ScopedSpan;
@@ -42,7 +55,7 @@ public class ITTracingStatementInterceptor {
 
     dataSource.setUser(System.getenv("MYSQL_USER"));
     assumeTrue("Minimally, the environment variable MYSQL_USER must be set",
-        dataSource.getUser() != null);
+      dataSource.getUser() != null);
     dataSource.setPassword(envOr("MYSQL_PASS", ""));
     connection = dataSource.getConnection();
     spans.clear();
@@ -63,7 +76,7 @@ public class ITTracingStatementInterceptor {
     }
 
     assertThat(spans)
-        .hasSize(2);
+      .hasSize(2);
   }
 
   @Test
@@ -71,8 +84,8 @@ public class ITTracingStatementInterceptor {
     prepareExecuteSelect(QUERY);
 
     assertThat(spans)
-        .extracting(Span::kind)
-        .containsExactly(Span.Kind.CLIENT);
+      .extracting(Span::kind)
+      .containsExactly(Span.Kind.CLIENT);
   }
 
   @Test
@@ -80,8 +93,8 @@ public class ITTracingStatementInterceptor {
     prepareExecuteSelect(QUERY);
 
     assertThat(spans)
-        .extracting(Span::name)
-        .containsExactly("select");
+      .extracting(Span::name)
+      .containsExactly("select");
   }
 
   /** This intercepts all SQL, not just queries. This ensures single-word statements work */
@@ -91,8 +104,8 @@ public class ITTracingStatementInterceptor {
     connection.commit();
 
     assertThat(spans)
-        .extracting(Span::name)
-        .contains("commit");
+      .extracting(Span::name)
+      .contains("commit");
   }
 
   @Test
@@ -100,8 +113,8 @@ public class ITTracingStatementInterceptor {
     prepareExecuteSelect(QUERY);
 
     assertThat(spans)
-        .flatExtracting(s -> s.tags().entrySet())
-        .containsExactly(entry("sql.query", QUERY));
+      .flatExtracting(s -> s.tags().entrySet())
+      .containsExactly(entry("sql.query", QUERY));
   }
 
   @Test
@@ -109,8 +122,8 @@ public class ITTracingStatementInterceptor {
     prepareExecuteSelect(QUERY);
 
     assertThat(spans)
-        .extracting(Span::remoteServiceName)
-        .contains("myservice");
+      .extracting(Span::remoteServiceName)
+      .contains("myservice");
   }
 
   void prepareExecuteSelect(String query) throws SQLException {
@@ -125,9 +138,9 @@ public class ITTracingStatementInterceptor {
 
   Tracing.Builder tracingBuilder(Sampler sampler) {
     return Tracing.newBuilder()
-        .spanReporter(spans::add)
-        .currentTraceContext(ThreadLocalCurrentTraceContext.create())
-        .sampler(sampler);
+      .spanReporter(spans::add)
+      .currentTraceContext(ThreadLocalCurrentTraceContext.create())
+      .sampler(sampler);
   }
 
   static int envOr(String key, int fallback) {

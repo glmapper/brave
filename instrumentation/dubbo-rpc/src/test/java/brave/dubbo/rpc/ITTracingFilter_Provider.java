@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.dubbo.rpc;
 
 import brave.sampler.Sampler;
@@ -24,8 +37,8 @@ public class ITTracingFilter_Provider extends ITTracingFilter {
         throw new IllegalArgumentException();
       }
       String value = tracing != null && tracing.currentTraceContext().get() != null
-          ? tracing.currentTraceContext().get().traceIdString()
-          : "";
+        ? tracing.currentTraceContext().get().traceIdString()
+        : "";
       arg.setProperty("value", value);
       return args[0];
     });
@@ -90,7 +103,7 @@ public class ITTracingFilter_Provider extends ITTracingFilter {
 
   @Test public void currentSpanVisibleToImpl() throws Exception {
     assertThat(client.get().sayHello("jorge"))
-        .isNotEmpty();
+      .isNotEmpty();
 
     takeSpan();
   }
@@ -100,7 +113,7 @@ public class ITTracingFilter_Provider extends ITTracingFilter {
 
     Span span = takeSpan();
     assertThat(span.kind())
-        .isEqualTo(Span.Kind.SERVER);
+      .isEqualTo(Span.Kind.SERVER);
   }
 
   @Test public void defaultSpanNameIsMethodName() throws Exception {
@@ -108,7 +121,7 @@ public class ITTracingFilter_Provider extends ITTracingFilter {
 
     Span span = takeSpan();
     assertThat(span.name())
-        .isEqualTo("genericservice/sayhello");
+      .isEqualTo("genericservice/sayhello");
   }
 
   @Test public void addsErrorTagOnException() throws Exception {
@@ -119,7 +132,7 @@ public class ITTracingFilter_Provider extends ITTracingFilter {
     } catch (IllegalArgumentException e) {
       Span span = takeSpan();
       assertThat(span.tags()).containsExactly(
-          entry("error", "IllegalArgumentException")
+        entry("error", "IllegalArgumentException")
       );
     }
   }

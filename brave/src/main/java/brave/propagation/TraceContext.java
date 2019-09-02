@@ -1,9 +1,23 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.propagation;
 
 import brave.Span;
 import brave.internal.InternalPropagation;
 import brave.internal.Nullable;
 import brave.internal.Platform;
+import brave.internal.RecyclableBuffers;
 import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.List;
@@ -98,6 +112,9 @@ public final class TraceContext extends SamplingFlags {
    *
    * <p>This does not group together multiple points of entry in the same trace. For example,
    * repetitive consumption of the same incoming message results in different local roots.
+   *
+   * @return the {@link #spanId() span ID} of the local root or zero if this context wasn't
+   * initialized by a {@link brave.Tracer}.
    */
   // This is the first span ID that became a Span or ScopedSpan
   public long localRootId() {
@@ -136,8 +153,7 @@ public final class TraceContext extends SamplingFlags {
   }
 
   /**
-   * True if we are contributing to a span started by another tracer (ex on a different host).
-   * Defaults to false.
+   * True if we are recording a server span with the same span ID parsed from incoming headers.
    *
    * <h3>Impact on indexing</h3>
    * <p>When an RPC trace is client-originated, it will be sampled and the same span ID is used for
@@ -185,7 +201,7 @@ public final class TraceContext extends SamplingFlags {
     String r = traceIdString;
     if (r == null) {
       if (traceIdHigh != 0) {
-        char[] result = new char[32];
+        char[] result = RecyclableBuffers.idBuffer();
         writeHexLong(result, 0, traceIdHigh);
         writeHexLong(result, 16, traceId);
         r = new String(result);
@@ -423,8 +439,8 @@ public final class TraceContext extends SamplingFlags {
 
       assert max == 32 || max == 16;
       Platform.get().log(max == 32
-          ? "{0} should be a 1 to 32 character lower-hex string with no prefix"
-          : "{0} should be a 1 to 16 character lower-hex string with no prefix", key, null);
+        ? "{0} should be a 1 to 32 character lower-hex string with no prefix"
+        : "{0} should be a 1 to 16 character lower-hex string with no prefix", key, null);
 
       return true;
     }
@@ -445,7 +461,7 @@ public final class TraceContext extends SamplingFlags {
       if (spanId == 0L) missing += " spanId";
       if (!"".equals(missing)) throw new IllegalStateException("Missing: " + missing);
       return new TraceContext(
-          flags, traceIdHigh, traceId, localRootId, parentId, spanId, ensureImmutable(extra)
+        flags, traceIdHigh, traceId, localRootId, parentId, spanId, ensureImmutable(extra)
       );
     }
 
@@ -465,13 +481,13 @@ public final class TraceContext extends SamplingFlags {
   final List<Object> extra;
 
   TraceContext(
-      int flags,
-      long traceIdHigh,
-      long traceId,
-      long localRootId,
-      long parentId,
-      long spanId,
-      List<Object> extra
+    int flags,
+    long traceIdHigh,
+    long traceId,
+    long localRootId,
+    long parentId,
+    long spanId,
+    List<Object> extra
   ) {
     super(flags);
     this.traceIdHigh = traceIdHigh;
@@ -495,9 +511,9 @@ public final class TraceContext extends SamplingFlags {
     if (!(o instanceof TraceContext)) return false;
     TraceContext that = (TraceContext) o;
     return (traceIdHigh == that.traceIdHigh)
-        && (traceId == that.traceId)
-        && (spanId == that.spanId)
-        && ((flags & FLAG_SHARED) == (that.flags & FLAG_SHARED));
+      && (traceId == that.traceId)
+      && (spanId == that.spanId)
+      && ((flags & FLAG_SHARED) == (that.flags & FLAG_SHARED));
   }
 
   volatile int hashCode; // Lazily initialized and cached.

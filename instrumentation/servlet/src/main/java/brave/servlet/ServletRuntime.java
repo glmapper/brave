@@ -1,8 +1,20 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.servlet;
 
 import brave.Span;
 import brave.http.HttpServerHandler;
-import brave.internal.Nullable;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.LinkedHashMap;
@@ -31,12 +43,12 @@ abstract class ServletRuntime {
     return (HttpServletResponse) response;
   }
 
-  abstract @Nullable Integer status(HttpServletResponse response);
+  abstract int status(HttpServletResponse response);
 
   abstract boolean isAsync(HttpServletRequest request);
 
   abstract void handleAsync(HttpServerHandler<HttpServletRequest, HttpServletResponse> handler,
-      HttpServletRequest request, HttpServletResponse response, Span span);
+    HttpServletRequest request, HttpServletResponse response, Span span);
 
   ServletRuntime() {
   }
@@ -51,7 +63,7 @@ abstract class ServletRuntime {
     try {
       Class.forName("javax.servlet.AsyncEvent");
       HttpServletRequest.class.getMethod("isAsyncStarted");
-      return new Servlet3();
+      return new Servlet3(); // intentionally doesn't not access the type prior to the above guard
     } catch (NoSuchMethodException e) {
       // pre Servlet v3
     } catch (ClassNotFoundException e) {
@@ -67,12 +79,12 @@ abstract class ServletRuntime {
       return request.isAsyncStarted();
     }
 
-    @Override @Nullable Integer status(HttpServletResponse response) {
+    @Override int status(HttpServletResponse response) {
       return response.getStatus();
     }
 
     @Override void handleAsync(HttpServerHandler<HttpServletRequest, HttpServletResponse> handler,
-        HttpServletRequest request, HttpServletResponse response, Span span) {
+      HttpServletRequest request, HttpServletResponse response, Span span) {
       if (span.isNoop()) return; // don't add overhead when we aren't httpTracing
       TracingAsyncListener listener = new TracingAsyncListener(handler, span);
       request.getAsyncContext().addListener(listener, request, response);
@@ -84,8 +96,8 @@ abstract class ServletRuntime {
       volatile boolean complete; // multiple async events can occur, only complete once
 
       TracingAsyncListener(
-          HttpServerHandler<HttpServletRequest, HttpServletResponse> handler,
-          Span span
+        HttpServerHandler<HttpServletRequest, HttpServletResponse> handler,
+        Span span
       ) {
         this.handler = handler;
         this.span = span;
@@ -126,8 +138,8 @@ abstract class ServletRuntime {
 
   static HttpServletResponse adaptResponse(AsyncEvent event) {
     return ADAPTER.adaptResponse(
-        (HttpServletRequest) event.getSuppliedRequest(),
-        (HttpServletResponse) event.getSuppliedResponse()
+      (HttpServletRequest) event.getSuppliedRequest(),
+      (HttpServletResponse) event.getSuppliedResponse()
     );
   }
 
@@ -141,20 +153,20 @@ abstract class ServletRuntime {
     }
 
     @Override void handleAsync(HttpServerHandler<HttpServletRequest, HttpServletResponse> handler,
-        HttpServletRequest request, HttpServletResponse response, Span span) {
+      HttpServletRequest request, HttpServletResponse response, Span span) {
       assert false : "this should never be called in Servlet 2.5";
     }
 
     // copy-on-write global reflection cache outperforms thread local copies
     final AtomicReference<Map<Class<?>, Object>> classToGetStatus =
-        new AtomicReference<>(new LinkedHashMap<>());
+      new AtomicReference<>(new LinkedHashMap<>());
     static final String RETURN_NULL = "RETURN_NULL";
 
     /**
      * Eventhough the Servlet 2.5 version of HttpServletResponse doesn't have the getStatus method,
      * routine servlet runtimes, do, for example {@code org.eclipse.jetty.server.Response}
      */
-    @Override @Nullable Integer status(HttpServletResponse response) {
+    @Override int status(HttpServletResponse response) {
       // unwrap if we've decorated the response
       if (response instanceof HttpServletAdapter.DecoratedHttpServletResponse) {
         HttpServletResponseWrapper decorated = ((HttpServletResponseWrapper) response);
@@ -168,13 +180,13 @@ abstract class ServletRuntime {
       Map<Class<?>, Object> classesToCheck = classToGetStatus.get();
       Object getStatusMethod = classesToCheck.get(clazz);
       if (getStatusMethod == RETURN_NULL ||
-          (getStatusMethod == null && classesToCheck.size() == 10)) { // limit size
-        return null;
+        (getStatusMethod == null && classesToCheck.size() == 10)) { // limit size
+        return 0;
       }
 
       // Now, we either have a cached method or we have room to cache a method
       if (getStatusMethod == null) {
-        if (clazz.isLocalClass() || clazz.isAnonymousClass()) return null; // don't cache
+        if (clazz.isLocalClass() || clazz.isAnonymousClass()) return 0; // don't cache
         try {
           // we don't check for accessibility as isAccessible is deprecated: just fail later
           getStatusMethod = clazz.getMethod("getStatus");
@@ -182,7 +194,7 @@ abstract class ServletRuntime {
         } catch (Throwable throwable) {
           Call.propagateIfFatal(throwable);
           getStatusMethod = RETURN_NULL;
-          return null;
+          return 0;
         } finally {
           // regardless of success or fail, replace the cache
           Map<Class<?>, Object> replacement = new LinkedHashMap<>(classesToCheck);
@@ -199,7 +211,7 @@ abstract class ServletRuntime {
         Map<Class<?>, Object> replacement = new LinkedHashMap<>(classesToCheck);
         replacement.put(clazz, RETURN_NULL);
         classToGetStatus.set(replacement); // prefer overriding on failure
-        return null;
+        return 0;
       }
     }
   }
@@ -213,7 +225,8 @@ abstract class ServletRuntime {
       super((HttpServletResponse) response);
     }
 
-    @Override public void setStatus(int sc, String sm) {
+    // Do not use @Override annotation to avoid compatibility on deprecated methods
+    public void setStatus(int sc, String sm) {
       httpStatus = sc;
       super.setStatus(sc, sm);
     }

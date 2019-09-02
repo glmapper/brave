@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.internal;
 
 import brave.propagation.TraceContext;
@@ -34,7 +47,7 @@ public abstract class PropagationFields {
         return true;
       }
       return this.traceId == traceId
-          && this.spanId == spanId;
+        && this.spanId == spanId;
     }
   }
 
@@ -44,7 +57,7 @@ public abstract class PropagationFields {
 
   /** Returns the value of the field with the specified key or null if not available */
   public static String get(TraceContext context, String name,
-      Class<? extends PropagationFields> type) {
+    Class<? extends PropagationFields> type) {
     if (context == null) throw new NullPointerException("context == null");
     if (name == null) throw new NullPointerException("name == null");
     PropagationFields fields = context.findExtra(type);
@@ -53,7 +66,7 @@ public abstract class PropagationFields {
 
   /** Replaces the value of the field with the specified key, ignoring if not a permitted field */
   public static void put(TraceContext context, String name, String value,
-      Class<? extends PropagationFields> type) {
+    Class<? extends PropagationFields> type) {
     if (context == null) throw new NullPointerException("context == null");
     if (name == null) throw new NullPointerException("name == null");
     if (value == null) throw new NullPointerException("value == null");

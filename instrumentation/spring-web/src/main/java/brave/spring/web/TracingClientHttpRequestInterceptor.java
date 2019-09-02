@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.spring.web;
 
 import brave.Span;
@@ -5,6 +18,7 @@ import brave.Tracer;
 import brave.Tracing;
 import brave.http.HttpClientHandler;
 import brave.http.HttpTracing;
+import brave.internal.Nullable;
 import brave.propagation.Propagation.Setter;
 import brave.propagation.TraceContext;
 import java.io.IOException;
@@ -45,7 +59,7 @@ public final class TracingClientHttpRequestInterceptor implements ClientHttpRequ
   }
 
   @Override public ClientHttpResponse intercept(HttpRequest request, byte[] body,
-      ClientHttpRequestExecution execution) throws IOException {
+    ClientHttpRequestExecution execution) throws IOException {
     Span span = handler.handleSend(injector, request.getHeaders(), request);
     ClientHttpResponse response = null;
     Throwable error = null;
@@ -60,7 +74,7 @@ public final class TracingClientHttpRequestInterceptor implements ClientHttpRequ
   }
 
   static final class HttpAdapter
-      extends brave.http.HttpClientAdapter<HttpRequest, ClientHttpResponse> {
+    extends brave.http.HttpClientAdapter<HttpRequest, ClientHttpResponse> {
 
     @Override public String method(HttpRequest request) {
       return request.getMethod().name();
@@ -75,11 +89,16 @@ public final class TracingClientHttpRequestInterceptor implements ClientHttpRequ
       return result != null ? result.toString() : "";
     }
 
-    @Override public Integer statusCode(ClientHttpResponse response) {
+    @Override @Nullable public Integer statusCode(ClientHttpResponse response) {
+      int result = statusCodeAsInt(response);
+      return result != 0 ? result : null;
+    }
+
+    @Override public int statusCodeAsInt(ClientHttpResponse response) {
       try {
         return response.getRawStatusCode();
-      } catch (IOException e) {
-        return null;
+      } catch (IllegalArgumentException | IOException e) {
+        return 0;
       }
     }
   }

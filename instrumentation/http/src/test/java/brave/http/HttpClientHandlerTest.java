@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.http;
 
 import brave.ScopedSpan;
@@ -33,12 +46,12 @@ public class HttpClientHandlerTest {
 
   @Before public void init() {
     httpTracing = HttpTracing.newBuilder(
-        Tracing.newBuilder()
-            .currentTraceContext(ThreadLocalCurrentTraceContext.newBuilder()
-                .addScopeDecorator(StrictScopeDecorator.create())
-                .build())
-            .spanReporter(spans::add)
-            .build()
+      Tracing.newBuilder()
+        .currentTraceContext(ThreadLocalCurrentTraceContext.newBuilder()
+          .addScopeDecorator(StrictScopeDecorator.create())
+          .build())
+        .spanReporter(spans::add)
+        .build()
     ).clientSampler(new HttpSampler() {
       @Override public <Req> Boolean trySample(HttpAdapter<Req, ?> adapter, Req request) {
         return sampler.trySample(adapter, request);
@@ -68,16 +81,16 @@ public class HttpClientHandlerTest {
 
   @Test public void handleSend_defaultsToMakeNewTrace() {
     assertThat(handler.handleSend(injector, request))
-        .extracting(s -> s.isNoop(), s -> s.context().parentId())
-        .containsExactly(false, null);
+      .extracting(s -> s.isNoop(), s -> s.context().parentId())
+      .containsExactly(false, null);
   }
 
   @Test public void handleSend_makesAChild() {
     ScopedSpan parent = httpTracing.tracing().tracer().startScopedSpan("test");
     try {
       assertThat(handler.handleSend(injector, request))
-          .extracting(s -> s.isNoop(), s -> s.context().parentId())
-          .containsExactly(false, parent.context().spanId());
+        .extracting(s -> s.isNoop(), s -> s.context().parentId())
+        .containsExactly(false, parent.context().spanId());
     } finally {
       parent.finish();
     }
@@ -89,7 +102,7 @@ public class HttpClientHandlerTest {
     when(sampler.trySample(adapter, request)).thenReturn(false);
 
     assertThat(handler.handleSend(injector, request).isNoop())
-        .isTrue();
+      .isTrue();
   }
 
   @Test public void handleSend_injectsTheTraceContext() {
@@ -111,15 +124,15 @@ public class HttpClientHandlerTest {
     HttpClientHandler.create(httpTracing, adapter).handleSend(injector, request).finish();
 
     assertThat(spans)
-        .extracting(Span::remoteServiceName)
-        .containsExactly("remote-service");
+      .extracting(Span::remoteServiceName)
+      .containsExactly("remote-service");
   }
 
   @Test public void handleSend_skipsClientAddressWhenUnparsed() {
     handler.handleSend(injector, request).finish();
 
     assertThat(spans)
-        .extracting(Span::remoteServiceName)
-        .containsNull();
+      .extracting(Span::remoteServiceName)
+      .containsNull();
   }
 }

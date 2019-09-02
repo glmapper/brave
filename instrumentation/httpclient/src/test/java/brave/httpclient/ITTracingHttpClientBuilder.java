@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.httpclient;
 
 import brave.test.http.ITHttpClient;
@@ -26,12 +39,12 @@ public class ITTracingHttpClientBuilder extends ITHttpClient<CloseableHttpClient
   }
 
   @Override protected void get(CloseableHttpClient client, String pathIncludingQuery)
-      throws IOException {
+    throws IOException {
     consume(client.execute(new HttpGet(URI.create(url(pathIncludingQuery)))).getEntity());
   }
 
   @Override protected void post(CloseableHttpClient client, String pathIncludingQuery, String body)
-      throws Exception {
+    throws Exception {
     HttpPost post = new HttpPost(URI.create(url(pathIncludingQuery)));
     post.setEntity(new StringEntity(body));
     consume(client.execute(post).getEntity());
@@ -42,15 +55,15 @@ public class ITTracingHttpClientBuilder extends ITHttpClient<CloseableHttpClient
     closeClient(client);
 
     client = TracingHttpClientBuilder.create(httpTracing).disableAutomaticRetries()
-        .addInterceptorFirst((HttpRequestInterceptor) (request, context) ->
-            request.setHeader("my-id", currentTraceContext.get().traceIdString())
-        ).build();
+      .addInterceptorFirst((HttpRequestInterceptor) (request, context) ->
+        request.setHeader("my-id", currentTraceContext.get().traceIdString())
+      ).build();
 
     get(client, "/foo");
 
     RecordedRequest request = server.takeRequest();
     assertThat(request.getHeader("x-b3-traceId"))
-        .isEqualTo(request.getHeader("my-id"));
+      .isEqualTo(request.getHeader("my-id"));
 
     takeSpan();
   }

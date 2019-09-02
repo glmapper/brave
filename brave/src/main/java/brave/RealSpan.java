@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave;
 
 import brave.handler.FinishedSpanHandler;
@@ -13,19 +26,17 @@ final class RealSpan extends Span {
   final MutableSpan state;
   final Clock clock;
   final FinishedSpanHandler finishedSpanHandler;
-  final RealSpanCustomizer customizer;
 
   RealSpan(TraceContext context,
-      PendingSpans pendingSpans,
-      MutableSpan state,
-      Clock clock,
-      FinishedSpanHandler finishedSpanHandler
+    PendingSpans pendingSpans,
+    MutableSpan state,
+    Clock clock,
+    FinishedSpanHandler finishedSpanHandler
   ) {
     this.context = context;
     this.pendingSpans = pendingSpans;
     this.state = state;
     this.clock = clock;
-    this.customizer = new RealSpanCustomizer(context, state, clock);
     this.finishedSpanHandler = finishedSpanHandler;
   }
 
@@ -38,7 +49,7 @@ final class RealSpan extends Span {
   }
 
   @Override public SpanCustomizer customizer() {
-    return new RealSpanCustomizer(context, state, clock);
+    return new SpanCustomizerShield(this);
   }
 
   @Override public Span start() {
@@ -153,10 +164,22 @@ final class RealSpan extends Span {
     return "RealSpan(" + context + ")";
   }
 
+  /**
+   * This also matches equals against a lazy span. The rationale is least surprise to the user, as
+   * code should not act differently given an instance of lazy or {@link RealSpan}.
+   */
   @Override public boolean equals(Object o) {
     if (o == this) return true;
-    if (!(o instanceof RealSpan)) return false;
-    return context.equals(((RealSpan) o).context);
+    return isEqualToRealOrLazySpan(context, o);
+  }
+
+  static boolean isEqualToRealOrLazySpan(TraceContext context, Object o) {
+    if (o instanceof LazySpan) {
+      return context.equals(((LazySpan) o).context);
+    } else if (o instanceof RealSpan) {
+      return context.equals(((RealSpan) o).context);
+    }
+    return false;
   }
 
   @Override public int hashCode() {

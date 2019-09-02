@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.context.rxjava2;
 
 import brave.propagation.CurrentTraceContext;
@@ -23,8 +36,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class NotYetSupportedTest {
   CurrentTraceContext currentTraceContext = ThreadLocalCurrentTraceContext.newBuilder()
-      .addScopeDecorator(StrictScopeDecorator.create())
-      .build();
+    .addScopeDecorator(StrictScopeDecorator.create())
+    .build();
   TraceContext assemblyContext = TraceContext.newBuilder().traceId(1L).spanId(1L).build();
   TraceContext subscribeContext = assemblyContext.toBuilder().parentId(1L).spanId(2L).build();
 
@@ -39,7 +52,7 @@ public class NotYetSupportedTest {
 
   /**
    * On XMap (ex {@code just(1).concatMap(..}, the source scalar callable is not passed as an input
-   * to the subsequent operator like {@link ObservableScalarXMap.ScalarXMapObservable}. What is
+   * to the subsequent operator like {@code ObservableScalarXMap.ScalarXMapObservable}. What is
    * passed is the result of {@link ScalarCallable#call()}.
    *
    * <p>Usually, this would result in lost tracking of the assembled context. However, we use a
@@ -130,12 +143,12 @@ public class NotYetSupportedTest {
 
   Observable<Integer> assertXMapFusion(Observable<Integer> fuseable) {
     return fuseable
-        // prove XMap fusion occurred
-        .doOnSubscribe(d -> {
-          assertThat(d).isInstanceOf(ObservableScalarXMap.ScalarDisposable.class);
-        })
-        .doOnNext(e -> assertInAssemblyContext())
-        .doOnComplete(this::assertInAssemblyContext);
+      // prove XMap fusion occurred
+      .doOnSubscribe(d -> {
+        assertThat(d).isInstanceOf(ObservableScalarXMap.ScalarDisposable.class);
+      })
+      .doOnNext(e -> assertInAssemblyContext())
+      .doOnComplete(this::assertInAssemblyContext);
   }
 
   void assertInAssemblyContext() {

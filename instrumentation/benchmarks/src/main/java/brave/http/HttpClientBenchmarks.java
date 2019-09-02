@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.http;
 
 import brave.Tracing;
@@ -45,7 +58,7 @@ public abstract class HttpClientBenchmarks<C> {
   C tracedClient;
   C unsampledClient;
   TraceContext context =
-      TraceContext.newBuilder().traceIdHigh(333L).traceId(444L).spanId(3).sampled(true).build();
+    TraceContext.newBuilder().traceIdHigh(333L).traceId(444L).spanId(3).sampled(true).build();
 
   protected String baseUrl() {
     return baseUrl;
@@ -53,21 +66,21 @@ public abstract class HttpClientBenchmarks<C> {
 
   @Setup(Level.Trial) public void init() throws Exception {
     server = Undertow.builder()
-        .addHttpListener(0, "127.0.0.1")
-        .setHandler(exchange -> {
-          exchange.getResponseHeaders().put(CONTENT_TYPE, "text/plain; charset=UTF-8");
-          exchange.getResponseSender().send("hello world");
-        }).build();
+      .addHttpListener(0, "127.0.0.1")
+      .setHandler(exchange -> {
+        exchange.getResponseHeaders().put(CONTENT_TYPE, "text/plain; charset=UTF-8");
+        exchange.getResponseSender().send("hello world");
+      }).build();
     server.start();
     baseUrl = "http://127.0.0.1:" +
-        ((InetSocketAddress) server.getListenerInfo().get(0).getAddress()).getPort();
+      ((InetSocketAddress) server.getListenerInfo().get(0).getAddress()).getPort();
 
     client = newClient();
     tracedClient = newClient(HttpTracing.create(
-        Tracing.newBuilder().spanReporter(Reporter.NOOP).build()
+      Tracing.newBuilder().spanReporter(Reporter.NOOP).build()
     ));
     unsampledClient = newClient(HttpTracing.create(
-        Tracing.newBuilder().sampler(Sampler.NEVER_SAMPLE).spanReporter(Reporter.NOOP).build()
+      Tracing.newBuilder().sampler(Sampler.NEVER_SAMPLE).spanReporter(Reporter.NOOP).build()
     ));
   }
 

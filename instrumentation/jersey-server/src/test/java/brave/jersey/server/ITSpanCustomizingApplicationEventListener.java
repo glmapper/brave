@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.jersey.server;
 
 import brave.servlet.TracingFilter;
@@ -27,8 +40,8 @@ public class ITSpanCustomizingApplicationEventListener extends ITServletContaine
 
     Span span = takeSpan();
     assertThat(span.tags())
-        .containsEntry("jaxrs.resource.class", "TestResource")
-        .containsEntry("jaxrs.resource.method", "foo");
+      .containsEntry("jaxrs.resource.class", "TestResource")
+      .containsEntry("jaxrs.resource.method", "foo");
   }
 
   /** Tests that the span propagates between under asynchronous callbacks managed by jersey. */
@@ -47,7 +60,7 @@ public class ITSpanCustomizingApplicationEventListener extends ITServletContaine
 
     // add the underlying servlet tracing filter which the event listener decorates with more tags
     Dynamic filterRegistration =
-        handler.getServletContext().addFilter("tracingFilter", TracingFilter.create(httpTracing));
+      handler.getServletContext().addFilter("tracingFilter", TracingFilter.create(httpTracing));
     filterRegistration.setAsyncSupported(true);
     // isMatchAfter=true is required for async tests to pass!
     filterRegistration.addMappingForUrlPatterns(EnumSet.allOf(DispatcherType.class), true, "/*");

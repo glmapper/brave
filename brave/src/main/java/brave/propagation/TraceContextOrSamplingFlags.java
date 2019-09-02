@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.propagation;
 
 import brave.Tracer;
@@ -38,10 +51,10 @@ import static java.util.Collections.emptyList;
 //@Immutable
 public final class TraceContextOrSamplingFlags {
   public static final TraceContextOrSamplingFlags
-      EMPTY = new TraceContextOrSamplingFlags(3, SamplingFlags.EMPTY, emptyList()),
-      NOT_SAMPLED = new TraceContextOrSamplingFlags(3, SamplingFlags.NOT_SAMPLED, emptyList()),
-      SAMPLED = new TraceContextOrSamplingFlags(3, SamplingFlags.SAMPLED, emptyList()),
-      DEBUG = new TraceContextOrSamplingFlags(3, SamplingFlags.DEBUG, emptyList());
+    EMPTY = new TraceContextOrSamplingFlags(3, SamplingFlags.EMPTY, emptyList()),
+    NOT_SAMPLED = new TraceContextOrSamplingFlags(3, SamplingFlags.NOT_SAMPLED, emptyList()),
+    SAMPLED = new TraceContextOrSamplingFlags(3, SamplingFlags.SAMPLED, emptyList()),
+    DEBUG = new TraceContextOrSamplingFlags(3, SamplingFlags.DEBUG, emptyList());
 
   public static Builder newBuilder() {
     return new Builder();
@@ -209,7 +222,7 @@ public final class TraceContextOrSamplingFlags {
           context = InternalPropagation.instance.withExtra(context, ensureImmutable(extra));
         } else {
           context = InternalPropagation.instance.withExtra(context,
-              concatImmutableLists(context.extra(), extra));
+            concatImmutableLists(context.extra(), extra));
         }
         result = new TraceContextOrSamplingFlags(type, context, emptyList());
       } else {
@@ -229,9 +242,7 @@ public final class TraceContextOrSamplingFlags {
     if (o == this) return true;
     if (!(o instanceof TraceContextOrSamplingFlags)) return false;
     TraceContextOrSamplingFlags that = (TraceContextOrSamplingFlags) o;
-    return (this.type == that.type)
-        && (this.value.equals(that.value))
-        && (this.extra.equals(that.extra));
+    return type == that.type && value.equals(that.value) && extra.equals(that.extra);
   }
 
   @Override public int hashCode() {

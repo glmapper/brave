@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.jersey.server;
 
 import brave.Span;
@@ -5,6 +18,7 @@ import brave.Tracer;
 import brave.http.HttpServerAdapter;
 import brave.http.HttpServerHandler;
 import brave.http.HttpTracing;
+import brave.internal.Nullable;
 import brave.propagation.Propagation.Getter;
 import brave.propagation.TraceContext;
 import javax.inject.Inject;
@@ -88,8 +102,9 @@ public final class TracingApplicationEventListener implements ApplicationEventLi
       return (String) event.getContainerRequest().getProperty("http.route");
     }
 
-    @Override public Integer statusCode(RequestEvent event) {
-      return statusCodeAsInt(event);
+    @Override @Nullable public Integer statusCode(RequestEvent response) {
+      int result = statusCodeAsInt(response);
+      return result != 0 ? result : null;
     }
 
     @Override public int statusCodeAsInt(RequestEvent event) {
@@ -130,6 +145,8 @@ public final class TracingApplicationEventListener implements ApplicationEventLi
           async = async(event);
           break;
         case REQUEST_FILTERED:
+        case RESOURCE_METHOD_FINISHED:
+          // If we scoped above, we have to close that to avoid leaks.
           // Jersey-specific @ManagedAsync stays on the request thread until REQUEST_FILTERED
           // Normal async methods sometimes stay on a thread until RESOURCE_METHOD_FINISHED, but
           // this is not reliable. So, we eagerly close the scope from request filters, and re-apply
@@ -143,12 +160,6 @@ public final class TracingApplicationEventListener implements ApplicationEventLi
           // is likely on a different thread than the request filtering.
           if (!async || spanInScope != null) break;
           spanInScope = tracer.withSpanInScope(span);
-          break;
-        case RESOURCE_METHOD_FINISHED:
-          // If we scoped above, we have to close that to avoid leaks.
-          if (!async || (maybeSpanInScope = spanInScope) == null) break;
-          maybeSpanInScope.close();
-          spanInScope = null;
           break;
         case FINISHED:
           // In async FINISHED can happen before RESOURCE_METHOD_FINISHED, and on different threads!
@@ -169,6 +180,6 @@ public final class TracingApplicationEventListener implements ApplicationEventLi
 
   static boolean async(RequestEvent event) {
     return event.getUriInfo().getMatchedResourceMethod().isManagedAsyncDeclared()
-        || event.getUriInfo().getMatchedResourceMethod().isSuspendDeclared();
+      || event.getUriInfo().getMatchedResourceMethod().isSuspendDeclared();
   }
 }

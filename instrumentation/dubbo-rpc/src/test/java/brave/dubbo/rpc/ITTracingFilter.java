@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.dubbo.rpc;
 
 import brave.Tracing;
@@ -40,8 +53,8 @@ public abstract class ITTracingFilter {
     @Override protected void succeeded(Description description) {
       try {
         assertThat(spans.poll(100, TimeUnit.MILLISECONDS))
-            .withFailMessage("Span remaining in queue. Check for redundant reporting")
-            .isNull();
+          .withFailMessage("Span remaining in queue. Check for redundant reporting")
+          .isNull();
       } catch (InterruptedException e) {
         e.printStackTrace();
       }
@@ -50,17 +63,17 @@ public abstract class ITTracingFilter {
 
   Tracing.Builder tracingBuilder(Sampler sampler) {
     return Tracing.newBuilder()
-        .spanReporter(spans::add)
-        .currentTraceContext(ThreadLocalCurrentTraceContext.newBuilder()
-            .addScopeDecorator(StrictScopeDecorator.create())
-            .build())
-        .sampler(sampler);
+      .spanReporter(spans::add)
+      .currentTraceContext(ThreadLocalCurrentTraceContext.newBuilder()
+        .addScopeDecorator(StrictScopeDecorator.create())
+        .build())
+      .sampler(sampler);
   }
 
   void setTracing(Tracing tracing) {
     ((TracingFilter) ExtensionLoader.getExtensionLoader(Filter.class)
-        .getExtension("tracing"))
-        .setTracing(tracing);
+      .getExtension("tracing"))
+      .setTracing(tracing);
     this.tracing = tracing;
   }
 
@@ -68,8 +81,8 @@ public abstract class ITTracingFilter {
   Span takeSpan() throws InterruptedException {
     Span result = spans.poll(3, TimeUnit.SECONDS);
     assertThat(result)
-        .withFailMessage("Span was not reported")
-        .isNotNull();
+      .withFailMessage("Span was not reported")
+      .isNotNull();
     return result;
   }
 }

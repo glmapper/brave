@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.propagation;
 
 import brave.internal.Nullable;
@@ -28,9 +41,9 @@ public interface Propagation<K> {
      * Does the propagation implementation support sharing client and server span IDs. For example,
      * should an RPC server span share the same identifiers extracted from an incoming request?
      *
-     * In usual <a href="https://github.com/openzipkin/b3-propagation">B3 Propagation</a>, the
-     * parent span ID is sent across the wire so that the client and server can share the same
-     * identifiers. Other propagation formats, like <a href="https://github.com/TraceContext/tracecontext-spec">trace-context</a>
+     * In usual <a href="https://github.com/apache/incubator-zipkin-b3-propagation">B3
+     * Propagation</a>, the parent span ID is sent across the wire so that the client and server can
+     * share the same identifiers. Other propagation formats, like <a href="https://github.com/TraceContext/tracecontext-spec">trace-context</a>
      * only propagate the calling trace and span ID, with an assumption that the receiver always
      * starts a new child span. When join is supported, you can assume that when {@link
      * TraceContext#parentId() the parent span ID} is null, you've been propagated a root span. When

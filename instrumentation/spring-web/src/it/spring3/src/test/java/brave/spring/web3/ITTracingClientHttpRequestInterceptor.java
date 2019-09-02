@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.spring.web3;
 
 import brave.spring.web.TracingClientHttpRequestInterceptor;
@@ -6,7 +19,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.RecordedRequest;
-import org.junit.AssumptionViolatedException;
 import org.junit.Test;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
@@ -52,14 +64,14 @@ public class ITTracingClientHttpRequestInterceptor extends ITHttpClient<ClientHt
     RestTemplate restTemplate = new RestTemplate(client);
     restTemplate.setInterceptors(Arrays.asList(interceptor, (request, body, execution) -> {
       request.getHeaders()
-          .add("my-id", currentTraceContext.get().traceIdString());
+        .add("my-id", currentTraceContext.get().traceIdString());
       return execution.execute(request, body);
     }));
     restTemplate.getForObject(server.url("/foo").toString(), String.class);
 
     RecordedRequest request = server.takeRequest();
     assertThat(request.getHeader("x-b3-traceId"))
-        .isEqualTo(request.getHeader("my-id"));
+      .isEqualTo(request.getHeader("my-id"));
 
     takeSpan();
   }

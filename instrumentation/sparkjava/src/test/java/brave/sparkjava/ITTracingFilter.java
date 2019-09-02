@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.sparkjava;
 
 import brave.servlet.TracingFilter;
@@ -37,8 +50,8 @@ public class ITTracingFilter extends ITServletContainer {
 
   @Override public void init(ServletContextHandler handler) {
     handler.getServletContext()
-        .addFilter("tracingFilter", TracingFilter.create(httpTracing))
-        .addMappingForUrlPatterns(EnumSet.allOf(DispatcherType.class), true, "/*");
+      .addFilter("tracingFilter", TracingFilter.create(httpTracing))
+      .addMappingForUrlPatterns(EnumSet.allOf(DispatcherType.class), true, "/*");
 
     Dynamic sparkFilter = handler.getServletContext().addFilter("sparkFilter", new SparkFilter());
     sparkFilter.setInitParameter("applicationClass", TestApplication.class.getName());

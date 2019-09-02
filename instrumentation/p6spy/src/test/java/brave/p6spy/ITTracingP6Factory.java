@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.p6spy;
 
 import brave.ScopedSpan;
@@ -55,7 +68,7 @@ public class ITTracingP6Factory {
     }
 
     assertThat(spans)
-        .hasSize(2);
+      .hasSize(2);
   }
 
   @Test
@@ -63,8 +76,8 @@ public class ITTracingP6Factory {
     prepareExecuteSelect(QUERY);
 
     assertThat(spans)
-        .flatExtracting(Span::kind)
-        .containsExactly(Span.Kind.CLIENT);
+      .flatExtracting(Span::kind)
+      .containsExactly(Span.Kind.CLIENT);
   }
 
   @Test
@@ -72,8 +85,8 @@ public class ITTracingP6Factory {
     prepareExecuteSelect(QUERY);
 
     assertThat(spans)
-        .extracting(Span::name)
-        .containsExactly("select");
+      .extracting(Span::name)
+      .containsExactly("select");
   }
 
   @Test
@@ -81,8 +94,8 @@ public class ITTracingP6Factory {
     prepareExecuteSelect(QUERY);
 
     assertThat(spans)
-        .flatExtracting(s -> s.tags().entrySet())
-        .containsExactly(entry("sql.query", QUERY));
+      .flatExtracting(s -> s.tags().entrySet())
+      .containsExactly(entry("sql.query", QUERY));
   }
 
   @Test
@@ -90,8 +103,8 @@ public class ITTracingP6Factory {
     prepareExecuteSelect(QUERY);
 
     assertThat(spans)
-        .flatExtracting(Span::remoteServiceName)
-        .containsExactly("myservice");
+      .flatExtracting(Span::remoteServiceName)
+      .containsExactly("myservice");
   }
 
   void prepareExecuteSelect(String query) throws SQLException {
@@ -106,8 +119,8 @@ public class ITTracingP6Factory {
 
   static Tracing.Builder tracingBuilder(Sampler sampler, ArrayList<Span> spans) {
     return Tracing.newBuilder()
-        .spanReporter(spans::add)
-        .currentTraceContext(ThreadLocalCurrentTraceContext.create())
-        .sampler(sampler);
+      .spanReporter(spans::add)
+      .currentTraceContext(ThreadLocalCurrentTraceContext.create())
+      .sampler(sampler);
   }
 }

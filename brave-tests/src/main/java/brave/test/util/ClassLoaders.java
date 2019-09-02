@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.test.util;
 
 import java.io.File;
@@ -18,8 +31,8 @@ public final class ClassLoaders {
 
   /** Runs the assertion in a new classloader. Needed when you are creating parameterized tests */
   public static <T> void assertRunIsUnloadableWithSupplier(
-      Class<? extends ConsumerRunnable<T>> assertion,
-      Class<? extends Supplier<? extends T>> supplier
+    Class<? extends ConsumerRunnable<T>> assertion,
+    Class<? extends Supplier<? extends T>> supplier
   ) {
     String property = assertion.getName() + ".supplier"; // assumes assertion is run only once
     System.setProperty(property, supplier.getName());
@@ -36,7 +49,7 @@ public final class ClassLoaders {
     protected ConsumerRunnable() {
       try {
         subjectSupplier =
-            (Class) Class.forName(System.getProperty(getClass().getName() + ".supplier"));
+          (Class) Class.forName(System.getProperty(getClass().getName() + ".supplier"));
       } catch (ClassNotFoundException e) {
         throw new AssertionError(e);
       }
@@ -50,11 +63,11 @@ public final class ClassLoaders {
   /** Validating instance creator that ensures the supplier type is static or top-level */
   public static <T> T newInstance(Class<T> type, ClassLoader loader) {
     assertThat(type)
-        .withFailMessage(type + " should be a static member class")
-        .satisfies(c -> {
-          assertThat(c.isLocalClass()).isFalse();
-          assertThat(Modifier.isPublic(c.getModifiers())).isFalse();
-        });
+      .withFailMessage(type + " should be a static member class")
+      .satisfies(c -> {
+        assertThat(c.isLocalClass()).isFalse();
+        assertThat(Modifier.isPublic(c.getModifiers())).isFalse();
+      });
 
     try {
       Class<T> classToInstantiate = (Class<T>) loader.loadClass(type.getName());
@@ -84,8 +97,8 @@ public final class ClassLoaders {
     blockOnGC();
 
     assertThat(loader.get())
-        .withFailMessage(runnable + " includes state that couldn't be garbage collected")
-        .isNull();
+      .withFailMessage(runnable + " includes state that couldn't be garbage collected")
+      .isNull();
   }
 
   static void blockOnGC() {
@@ -99,7 +112,7 @@ public final class ClassLoaders {
   }
 
   static WeakReference<ClassLoader> invokeRunFromNewClassLoader(
-      Class<? extends Runnable> runnable, ClassLoader parent) throws Exception {
+    Class<? extends Runnable> runnable, ClassLoader parent) throws Exception {
 
     ClassLoader loader = ClassLoaders.reloadClassNamePrefix(parent, "brave");
     Runnable instance = newInstance(runnable, loader);

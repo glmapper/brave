@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.grpc;
 
 import brave.grpc.GrpcPropagation.Tags;
@@ -30,22 +43,22 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 public class GrpcPropagationBenchmarks {
   static final Propagation<Metadata.Key<String>> b3 =
-      B3Propagation.FACTORY.create(AsciiMetadataKeyFactory.INSTANCE);
+    B3Propagation.FACTORY.create(AsciiMetadataKeyFactory.INSTANCE);
   static final Injector<Metadata> b3Injector = b3.injector(TracingClientInterceptor.SETTER);
   static final Extractor<Metadata> b3Extractor = b3.extractor(TracingServerInterceptor.GETTER);
 
   static final Propagation.Factory bothFactory = GrpcPropagation.newFactory(B3Propagation.FACTORY);
   static final Propagation<Metadata.Key<String>> both =
-      bothFactory.create(AsciiMetadataKeyFactory.INSTANCE);
+    bothFactory.create(AsciiMetadataKeyFactory.INSTANCE);
   static final Injector<Metadata> bothInjector = both.injector(TracingClientInterceptor.SETTER);
   static final Extractor<Metadata> bothExtractor = both.extractor(TracingServerInterceptor.GETTER);
 
   static final TraceContext context = TraceContext.newBuilder()
-      .traceIdHigh(HexCodec.lowerHexToUnsignedLong("67891233abcdef01"))
-      .traceId(HexCodec.lowerHexToUnsignedLong("2345678912345678"))
-      .spanId(HexCodec.lowerHexToUnsignedLong("463ac35c9f6413ad"))
-      .sampled(true)
-      .build();
+    .traceIdHigh(HexCodec.lowerHexToUnsignedLong("67891233abcdef01"))
+    .traceId(HexCodec.lowerHexToUnsignedLong("2345678912345678"))
+    .spanId(HexCodec.lowerHexToUnsignedLong("463ac35c9f6413ad"))
+    .sampled(true)
+    .build();
   static final TraceContext contextWithTags = bothFactory.decorate(context);
 
   static final Metadata incomingB3 = new Metadata();
@@ -98,9 +111,9 @@ public class GrpcPropagationBenchmarks {
   // Convenience main entry-point
   public static void main(String[] args) throws RunnerException {
     Options opt = new OptionsBuilder()
-        .addProfiler("gc")
-        .include(".*" + GrpcPropagationBenchmarks.class.getSimpleName())
-        .build();
+      .addProfiler("gc")
+      .include(".*" + GrpcPropagationBenchmarks.class.getSimpleName())
+      .build();
 
     new Runner(opt).run();
   }

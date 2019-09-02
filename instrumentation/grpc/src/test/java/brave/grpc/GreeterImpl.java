@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.grpc;
 
 import brave.CurrentSpanCustomizer;
@@ -21,7 +34,7 @@ class GreeterImpl extends GreeterGrpc.GreeterImplBase {
   GreeterImpl(@Nullable GrpcTracing grpcTracing) {
     tracing = grpcTracing != null ? grpcTracing.tracing : null;
     spanCustomizer =
-        tracing != null ? CurrentSpanCustomizer.create(tracing) : NoopSpanCustomizer.INSTANCE;
+      tracing != null ? CurrentSpanCustomizer.create(tracing) : NoopSpanCustomizer.INSTANCE;
   }
 
   @Override
@@ -42,7 +55,7 @@ class GreeterImpl extends GreeterGrpc.GreeterImplBase {
 
   @Override
   public void sayHelloWithManyReplies(
-      HelloRequest request, StreamObserver<HelloReply> responseObserver) {
+    HelloRequest request, StreamObserver<HelloReply> responseObserver) {
     for (int i = 0; i < 10; i++) {
       responseObserver.onNext(HelloReply.newBuilder().setMessage("reply " + i).build());
     }

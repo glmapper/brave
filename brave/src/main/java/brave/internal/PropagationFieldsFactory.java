@@ -1,10 +1,23 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.internal;
 
 import brave.propagation.TraceContext;
 import java.util.List;
 
 public abstract class PropagationFieldsFactory<P extends PropagationFields> extends
-    ExtraFactory<P> {
+  ExtraFactory<P> {
 
   @Override protected abstract P create();
 
@@ -30,7 +43,7 @@ public abstract class PropagationFieldsFactory<P extends PropagationFields> exte
 
   // TODO: this is internal. If we ever expose it otherwise, we should use Lists.ensureImmutable
   @Override protected TraceContext contextWithExtra(TraceContext context,
-      List<Object> immutableExtra) {
+    List<Object> immutableExtra) {
     return InternalPropagation.instance.withExtra(context, immutableExtra);
   }
 }

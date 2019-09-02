@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.kafka.clients;
 
 import brave.Span;
@@ -5,7 +18,6 @@ import brave.Tracer;
 import brave.internal.Nullable;
 import brave.propagation.CurrentTraceContext;
 import brave.propagation.TraceContext;
-import brave.propagation.TraceContext.Extractor;
 import brave.propagation.TraceContext.Injector;
 import java.time.Duration;
 import java.util.List;
@@ -30,7 +42,6 @@ final class TracingProducer<K, V> implements Producer<K, V> {
   final CurrentTraceContext current;
   final Tracer tracer;
   final Injector<Headers> injector;
-  final Extractor<Headers> extractor;
   @Nullable final String remoteServiceName;
 
   TracingProducer(Producer<K, V> delegate, KafkaTracing kafkaTracing) {
@@ -39,7 +50,6 @@ final class TracingProducer<K, V> implements Producer<K, V> {
     this.current = kafkaTracing.tracing.currentTraceContext();
     this.tracer = kafkaTracing.tracing.tracer();
     this.injector = kafkaTracing.injector;
-    this.extractor = kafkaTracing.extractor;
     this.remoteServiceName = kafkaTracing.remoteServiceName;
   }
 
@@ -127,7 +137,8 @@ final class TracingProducer<K, V> implements Producer<K, V> {
     delegate.close();
   }
 
-  @Override public void close(long timeout, TimeUnit unit) {
+  // Do not use @Override annotation to avoid compatibility on deprecated methods
+  public void close(long timeout, TimeUnit unit) {
     delegate.close(timeout, unit);
   }
 
@@ -138,7 +149,7 @@ final class TracingProducer<K, V> implements Producer<K, V> {
 
   @Override
   public void sendOffsetsToTransaction(Map<TopicPartition, OffsetAndMetadata> offsets,
-      String consumerGroupId) {
+    String consumerGroupId) {
     delegate.sendOffsetsToTransaction(offsets, consumerGroupId);
   }
 }

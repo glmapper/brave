@@ -1,10 +1,22 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.jms;
 
 import brave.Span;
 import brave.Tracer;
 import brave.Tracing;
 import brave.internal.Nullable;
-import brave.propagation.TraceContext.Extractor;
 import brave.propagation.TraceContextOrSamplingFlags;
 import javax.jms.Destination;
 import javax.jms.Message;
@@ -14,7 +26,6 @@ abstract class TracingConsumer<C> {
   final JmsTracing jmsTracing;
   final Tracing tracing;
   final Tracer tracer;
-  final Extractor<Message> extractor;
   @Nullable final String remoteServiceName;
 
   TracingConsumer(C delegate, JmsTracing jmsTracing) {
@@ -22,7 +33,6 @@ abstract class TracingConsumer<C> {
     this.jmsTracing = jmsTracing;
     this.tracing = jmsTracing.tracing;
     this.tracer = tracing.tracer();
-    this.extractor = jmsTracing.extractor;
     this.remoteServiceName = jmsTracing.remoteServiceName;
   }
 

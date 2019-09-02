@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.jersey.server;
 
 import brave.Tracing;
@@ -15,9 +28,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** This ensures all filters can be injected, supplied with only {@linkplain HttpTracing}. */
 public class InjectionTest {
   Tracing tracing = Tracing.newBuilder()
-      .currentTraceContext(ThreadLocalCurrentTraceContext.create())
-      .spanReporter(Reporter.NOOP)
-      .build();
+    .currentTraceContext(ThreadLocalCurrentTraceContext.create())
+    .spanReporter(Reporter.NOOP)
+    .build();
 
   Injector injector = Guice.createInjector(new AbstractModule() {
     @Override protected void configure() {
@@ -31,30 +44,30 @@ public class InjectionTest {
 
   @Test public void spanCustomizingApplicationEventListener() {
     SpanCustomizingApplicationEventListener filter =
-        injector.getInstance(SpanCustomizingApplicationEventListener.class);
+      injector.getInstance(SpanCustomizingApplicationEventListener.class);
 
     assertThat(filter.parser.getClass())
-        .isSameAs(EventParser.class);
+      .isSameAs(EventParser.class);
   }
 
   @Test public void spanCustomizingApplicationEventListener_resource() {
     SpanCustomizingApplicationEventListener filter =
-        injector.createChildInjector(new AbstractModule() {
-          @Override protected void configure() {
-            bind(EventParser.class).toInstance(EventParser.NOOP);
-          }
-        }).getInstance(SpanCustomizingApplicationEventListener.class);
+      injector.createChildInjector(new AbstractModule() {
+        @Override protected void configure() {
+          bind(EventParser.class).toInstance(EventParser.NOOP);
+        }
+      }).getInstance(SpanCustomizingApplicationEventListener.class);
 
     assertThat(filter.parser)
-        .isSameAs(EventParser.NOOP);
+      .isSameAs(EventParser.NOOP);
   }
 
   @Test public void tracingApplicationEventListener() {
     TracingApplicationEventListener filter =
-        injector.getInstance(TracingApplicationEventListener.class);
+      injector.getInstance(TracingApplicationEventListener.class);
 
     assertThat(filter.parser.getClass())
-        .isSameAs(EventParser.class);
+      .isSameAs(EventParser.class);
   }
 
   @Test public void tracingApplicationEventListener_resource() {
@@ -65,6 +78,6 @@ public class InjectionTest {
     }).getInstance(TracingApplicationEventListener.class);
 
     assertThat(filter.parser)
-        .isSameAs(EventParser.NOOP);
+      .isSameAs(EventParser.NOOP);
   }
 }

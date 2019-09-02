@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.test.http;
 
 import brave.ScopedSpan;
@@ -37,9 +50,9 @@ public abstract class ITHttpAsyncClient<C> extends ITHttpClient<C> {
       for (int i = 0; i < 2; i++) {
         RecordedRequest request = server.takeRequest();
         assertThat(request.getHeader("x-b3-traceId"))
-            .isEqualTo(parent.context().traceIdString());
+          .isEqualTo(parent.context().traceIdString());
         assertThat(request.getHeader("x-b3-parentspanid"))
-            .isEqualTo(parent.context().spanIdString());
+          .isEqualTo(parent.context().spanIdString());
       }
     } finally {
       otherSpan.finish();
@@ -47,7 +60,7 @@ public abstract class ITHttpAsyncClient<C> extends ITHttpClient<C> {
 
     // Check we reported 2 in-process spans and 2 RPC client spans
     assertThat(Arrays.asList(takeSpan(), takeSpan(), takeSpan(), takeSpan()))
-        .extracting(Span::kind)
-        .containsOnly(null, Span.Kind.CLIENT);
+      .extracting(Span::kind)
+      .containsOnly(null, Span.Kind.CLIENT);
   }
 }

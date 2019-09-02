@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.grpc;
 
 import brave.ScopedSpan;
@@ -22,6 +35,7 @@ import io.grpc.stub.StreamObserver;
 import io.opencensus.common.Scope;
 import io.opencensus.contrib.grpc.metrics.RpcMeasureConstants;
 import io.opencensus.implcore.tags.TagMapImpl;
+import io.opencensus.implcore.tags.TagValueWithMetadata;
 import io.opencensus.tags.TagKey;
 import io.opencensus.tags.TagValue;
 import io.opencensus.tags.Tags;
@@ -56,21 +70,21 @@ public class ITCensusInterop {
     /** This verifies internal state by writing to both brave and census apis */
     @Override
     public void sayHello(HelloRequest req, StreamObserver<HelloReply> responseObserver) {
-      Map<TagKey, TagValue> censusTags =
-          ((TagMapImpl) Tags.getTagger().getCurrentTagContext()).getTags();
+      Map<TagKey, TagValueWithMetadata> censusTags =
+        ((TagMapImpl) Tags.getTagger().getCurrentTagContext()).getTags();
 
       // Read in-process tags from census and write to both span apis
       io.opencensus.trace.Span censusSpan =
-          io.opencensus.trace.Tracing.getTracer().getCurrentSpan();
-      for (Map.Entry<TagKey, TagValue> entry : censusTags.entrySet()) {
-        spanCustomizer.tag(entry.getKey().getName(), entry.getValue().asString());
-        censusSpan.putAttribute(
-            entry.getKey().getName(), stringAttributeValue(entry.getValue().asString()));
+        io.opencensus.trace.Tracing.getTracer().getCurrentSpan();
+      for (Map.Entry<TagKey, TagValueWithMetadata> entry : censusTags.entrySet()) {
+        String stringValue = entry.getValue().getTagValue().asString();
+        spanCustomizer.tag(entry.getKey().getName(), stringValue);
+        censusSpan.putAttribute(entry.getKey().getName(), stringAttributeValue(stringValue));
       }
 
       // Read in-process tags from brave's grpc hooks and write to both span apis
       TraceContext currentTraceContext =
-          tracing != null ? tracing.currentTraceContext().get() : null;
+        tracing != null ? tracing.currentTraceContext().get() : null;
       if (currentTraceContext == null) {
         super.sayHello(req, responseObserver);
         return;
@@ -100,8 +114,8 @@ public class ITCensusInterop {
   @Before
   public void beforeClass() {
     getTraceConfig()
-        .updateActiveTraceParams(
-            TraceParams.DEFAULT.toBuilder().setSampler(Samplers.alwaysSample()).build());
+      .updateActiveTraceParams(
+        TraceParams.DEFAULT.toBuilder().setSampler(Samplers.alwaysSample()).build());
     getExportComponent().getSpanExporter().registerHandler("test", testHandler);
   }
 
@@ -109,13 +123,13 @@ public class ITCensusInterop {
   BlockingQueue<Span> spans = new LinkedBlockingQueue<>();
 
   Tracing tracing =
-      Tracing.newBuilder()
-          .propagationFactory(GrpcPropagation.newFactory(B3Propagation.FACTORY))
-          .spanReporter(spans::add)
-          .currentTraceContext(ThreadLocalCurrentTraceContext.newBuilder()
-              .addScopeDecorator(StrictScopeDecorator.create())
-              .build())
-          .build();
+    Tracing.newBuilder()
+      .propagationFactory(GrpcPropagation.newFactory(B3Propagation.FACTORY))
+      .spanReporter(spans::add)
+      .currentTraceContext(ThreadLocalCurrentTraceContext.newBuilder()
+        .addScopeDecorator(StrictScopeDecorator.create())
+        .build())
+      .build();
   GrpcTracing grpcTracing = GrpcTracing.create(tracing);
 
   Server server;
@@ -133,9 +147,9 @@ public class ITCensusInterop {
 
     Span serverSpan = takeSpan();
     assertThat(clientSpan.getContext().getTraceId().toLowerBase16())
-        .isEqualTo(serverSpan.traceId());
+      .isEqualTo(serverSpan.traceId());
     assertThat(clientSpan.getContext().getSpanId().toLowerBase16())
-        .isEqualTo(serverSpan.parentId());
+      .isEqualTo(serverSpan.parentId());
     assertThat(serverSpan.tags()).containsEntry("method", "helloworld.Greeter/SayHello");
   }
 
@@ -145,10 +159,10 @@ public class ITCensusInterop {
     initClient(false); // trace client with census
 
     try (Scope tagger =
-             Tags.getTagger()
-                 .emptyBuilder()
-                 .put(RpcMeasureConstants.RPC_METHOD, TagValue.create("edge.Ingress/InitialRoute"))
-                 .buildScoped()) {
+           Tags.getTagger()
+             .emptyBuilder()
+             .put(RpcMeasureConstants.RPC_METHOD, TagValue.create("edge.Ingress/InitialRoute"))
+             .buildScoped()) {
       GreeterGrpc.newBlockingStub(client).sayHello(HELLO_REQUEST);
     }
 
@@ -157,16 +171,16 @@ public class ITCensusInterop {
 
     Span serverSpan = takeSpan(), childSpan = takeSpan();
     assertThat(clientSpan.getContext().getTraceId().toLowerBase16())
-        .isEqualTo(serverSpan.traceId());
+      .isEqualTo(serverSpan.traceId());
     assertThat(clientSpan.getContext().getSpanId().toLowerBase16())
-        .isEqualTo(serverSpan.parentId());
+      .isEqualTo(serverSpan.parentId());
     assertThat(serverSpan.tags()).containsExactly(
-        entry("method", "helloworld.Greeter/SayHello")
+      entry("method", "helloworld.Greeter/SayHello")
     );
 
     // Show that parentMethod inherits in-process
     assertThat(childSpan.tags()).containsExactly(
-        entry("parentMethod", "edge.Ingress/InitialRoute")
+      entry("parentMethod", "edge.Ingress/InitialRoute")
     );
   }
 
@@ -182,23 +196,23 @@ public class ITCensusInterop {
 
     Span clientSpan = takeSpan();
     assertThat(clientSpan.traceId())
-        .isEqualTo(serverSpan.getContext().getTraceId().toLowerBase16());
+      .isEqualTo(serverSpan.getContext().getTraceId().toLowerBase16());
     assertThat(clientSpan.id()).isEqualTo(serverSpan.getParentSpanId().toLowerBase16());
     assertThat(serverSpan.getAttributes().getAttributeMap())
-        .containsEntry("method", stringAttributeValue("helloworld.Greeter/SayHello"));
+      .containsEntry("method", stringAttributeValue("helloworld.Greeter/SayHello"));
   }
 
   void initServer(boolean traceWithBrave) throws Exception {
     if (traceWithBrave) {
       NettyServerBuilder builder = (NettyServerBuilder) ServerBuilder.forPort(PickUnusedPort.get());
       builder.addService(
-          intercept(new TagsGreeterImpl(grpcTracing), grpcTracing.newServerInterceptor()));
+        intercept(new TagsGreeterImpl(grpcTracing), grpcTracing.newServerInterceptor()));
       // TODO: track gRPC exposing this
       InternalNettyServerBuilder.setTracingEnabled(builder, false);
       server = builder.build();
     } else {
       server =
-          ServerBuilder.forPort(PickUnusedPort.get()).addService(new TagsGreeterImpl(null)).build();
+        ServerBuilder.forPort(PickUnusedPort.get()).addService(new TagsGreeterImpl(null)).build();
     }
     server.start();
   }
@@ -206,16 +220,16 @@ public class ITCensusInterop {
   void initClient(boolean traceWithBrave) {
     if (traceWithBrave) {
       NettyChannelBuilder builder =
-          (NettyChannelBuilder)
-              ManagedChannelBuilder.forAddress("localhost", server.getPort())
-                  .intercept(grpcTracing.newClientInterceptor())
-                  .usePlaintext();
+        (NettyChannelBuilder)
+          ManagedChannelBuilder.forAddress("localhost", server.getPort())
+            .intercept(grpcTracing.newClientInterceptor())
+            .usePlaintext();
       // TODO: track gRPC exposing this
       InternalNettyChannelBuilder.setTracingEnabled(builder, false);
       client = builder.build();
     } else {
       client =
-          ManagedChannelBuilder.forAddress("localhost", server.getPort()).usePlaintext().build();
+        ManagedChannelBuilder.forAddress("localhost", server.getPort()).usePlaintext().build();
     }
   }
 
@@ -236,8 +250,8 @@ public class ITCensusInterop {
   Span takeSpan() throws InterruptedException {
     Span result = spans.poll(3, TimeUnit.SECONDS);
     assertThat(result)
-        .withFailMessage("Span was not reported")
-        .isNotNull();
+      .withFailMessage("Span was not reported")
+      .isNotNull();
     return result;
   }
 }

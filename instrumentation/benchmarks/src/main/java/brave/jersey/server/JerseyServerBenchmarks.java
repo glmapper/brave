@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.jersey.server;
 
 import brave.Tracing;
@@ -46,10 +59,10 @@ public class JerseyServerBenchmarks extends HttpServerBenchmarks {
   public static class Unsampled extends Application {
     @Override public Set<Object> getSingletons() {
       return new LinkedHashSet<>(asList(new Resource(), TracingApplicationEventListener.create(
-          HttpTracing.create(Tracing.newBuilder()
-              .sampler(Sampler.NEVER_SAMPLE)
-              .spanReporter(Reporter.NOOP)
-              .build())
+        HttpTracing.create(Tracing.newBuilder()
+          .sampler(Sampler.NEVER_SAMPLE)
+          .spanReporter(Reporter.NOOP)
+          .build())
       )));
     }
   }
@@ -58,7 +71,7 @@ public class JerseyServerBenchmarks extends HttpServerBenchmarks {
   public static class TracedApp extends Application {
     @Override public Set<Object> getSingletons() {
       return new LinkedHashSet<>(asList(new Resource(), TracingApplicationEventListener.create(
-          HttpTracing.create(Tracing.newBuilder().spanReporter(Reporter.NOOP).build())
+        HttpTracing.create(Tracing.newBuilder().spanReporter(Reporter.NOOP).build())
       )));
     }
   }
@@ -67,14 +80,14 @@ public class JerseyServerBenchmarks extends HttpServerBenchmarks {
   public static class TracedExtraApp extends Application {
     @Override public Set<Object> getSingletons() {
       return new LinkedHashSet<>(asList(new Resource(), TracingApplicationEventListener.create(
-          HttpTracing.create(Tracing.newBuilder()
-              .propagationFactory(ExtraFieldPropagation.newFactoryBuilder(B3Propagation.FACTORY)
-                  .addField("x-vcap-request-id")
-                  .addPrefixedFields("baggage-", asList("country-code", "user-id"))
-                  .build()
-              )
-              .spanReporter(Reporter.NOOP)
-              .build())
+        HttpTracing.create(Tracing.newBuilder()
+          .propagationFactory(ExtraFieldPropagation.newFactoryBuilder(B3Propagation.FACTORY)
+            .addField("x-vcap-request-id")
+            .addPrefixedFields("baggage-", asList("country-code", "user-id"))
+            .build()
+          )
+          .spanReporter(Reporter.NOOP)
+          .build())
       )));
     }
   }
@@ -83,44 +96,44 @@ public class JerseyServerBenchmarks extends HttpServerBenchmarks {
   public static class Traced128App extends Application {
     @Override public Set<Object> getSingletons() {
       return new LinkedHashSet<>(asList(new Resource(), TracingApplicationEventListener.create(
-          HttpTracing.create(Tracing.newBuilder()
-              .traceId128Bit(true)
-              .spanReporter(Reporter.NOOP)
-              .build())
+        HttpTracing.create(Tracing.newBuilder()
+          .traceId128Bit(true)
+          .spanReporter(Reporter.NOOP)
+          .build())
       )));
     }
   }
 
   @Override protected void init(DeploymentInfo servletBuilder) {
     servletBuilder.addServlets(
-        servlet("Unsampled", ServletContainer.class)
-            .setLoadOnStartup(1)
-            .addInitParam("javax.ws.rs.Application", Unsampled.class.getName())
-            .addMapping("/unsampled"),
-        servlet("Traced", ServletContainer.class)
-            .setLoadOnStartup(1)
-            .addInitParam("javax.ws.rs.Application", TracedApp.class.getName())
-            .addMapping("/traced"),
-        servlet("TracedExtra", ServletContainer.class)
-            .setLoadOnStartup(1)
-            .addInitParam("javax.ws.rs.Application", TracedExtraApp.class.getName())
-            .addMapping("/tracedextra"),
-        servlet("Traced128", ServletContainer.class)
-            .setLoadOnStartup(1)
-            .addInitParam("javax.ws.rs.Application", Traced128App.class.getName())
-            .addMapping("/traced128"),
-        servlet("App", ServletContainer.class)
-            .setLoadOnStartup(1)
-            .addInitParam("javax.ws.rs.Application", App.class.getName())
-            .addMapping("/*")
+      servlet("Unsampled", ServletContainer.class)
+        .setLoadOnStartup(1)
+        .addInitParam("javax.ws.rs.Application", Unsampled.class.getName())
+        .addMapping("/unsampled"),
+      servlet("Traced", ServletContainer.class)
+        .setLoadOnStartup(1)
+        .addInitParam("javax.ws.rs.Application", TracedApp.class.getName())
+        .addMapping("/traced"),
+      servlet("TracedExtra", ServletContainer.class)
+        .setLoadOnStartup(1)
+        .addInitParam("javax.ws.rs.Application", TracedExtraApp.class.getName())
+        .addMapping("/tracedextra"),
+      servlet("Traced128", ServletContainer.class)
+        .setLoadOnStartup(1)
+        .addInitParam("javax.ws.rs.Application", Traced128App.class.getName())
+        .addMapping("/traced128"),
+      servlet("App", ServletContainer.class)
+        .setLoadOnStartup(1)
+        .addInitParam("javax.ws.rs.Application", App.class.getName())
+        .addMapping("/*")
     );
   }
 
   // Convenience main entry-point
   public static void main(String[] args) throws RunnerException {
     Options opt = new OptionsBuilder()
-        .include(".*" + JerseyServerBenchmarks.class.getSimpleName() + ".*")
-        .build();
+      .include(".*" + JerseyServerBenchmarks.class.getSimpleName() + ".*")
+      .build();
 
     new Runner(opt).run();
   }

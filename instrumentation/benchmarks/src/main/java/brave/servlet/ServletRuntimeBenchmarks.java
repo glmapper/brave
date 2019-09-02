@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.servlet;
 
 import java.io.PrintWriter;
@@ -48,8 +61,8 @@ public class ServletRuntimeBenchmarks {
   int threeStatuses(ServletRuntime runtime) {
     // & to ensure null wasn't returned (forces NPE)
     return runtime.status(new Response1()) &
-        runtime.status(new Response2()) &
-        runtime.status(new Response3());
+      runtime.status(new Response2()) &
+      runtime.status(new Response3());
   }
 
   @Benchmark @Group("no_contention") @GroupThreads(1)
@@ -70,8 +83,8 @@ public class ServletRuntimeBenchmarks {
   int threeResponses(ServletRuntime runtime) {
     // & to ensure null wasn't returned (forces NPE)
     return runtime.httpResponse(new Response1()).getStatus() &
-        runtime.httpResponse(new Response2()).getStatus() &
-        runtime.httpResponse(new Response3()).getStatus();
+      runtime.httpResponse(new Response2()).getStatus() &
+      runtime.httpResponse(new Response3()).getStatus();
   }
 
   @Benchmark @Group("no_contention") @GroupThreads(1)
@@ -122,26 +135,26 @@ public class ServletRuntimeBenchmarks {
   private int threeStatusesReflection() throws Exception {
     // & to ensure null wasn't returned (forces NPE)
     return ((int) Response1.class.getMethod("getStatus").invoke(new Response1())) &
-        ((int) Response2.class.getMethod("getStatus").invoke(new Response2())) &
-        ((int) Response3.class.getMethod("getStatus").invoke(new Response3()));
+      ((int) Response2.class.getMethod("getStatus").invoke(new Response2())) &
+      ((int) Response3.class.getMethod("getStatus").invoke(new Response3()));
   }
 
   // Convenience main entry-point
   public static void main(String[] args) throws RunnerException {
     Options opt = new OptionsBuilder()
-        .include(".*" + ServletRuntimeBenchmarks.class.getSimpleName() + ".*")
-        .build();
+      .include(".*" + ServletRuntimeBenchmarks.class.getSimpleName() + ".*")
+      .build();
 
     new Runner(opt).run();
   }
 
-  class Response1 extends HttpServletResponseImpl {
+  static class Response1 extends HttpServletResponseImpl {
   }
 
-  class Response2 extends HttpServletResponseImpl {
+  static class Response2 extends HttpServletResponseImpl {
   }
 
-  class Response3 extends HttpServletResponseImpl {
+  static class Response3 extends HttpServletResponseImpl {
   }
 
   public static class HttpServletResponseImpl implements HttpServletResponse {

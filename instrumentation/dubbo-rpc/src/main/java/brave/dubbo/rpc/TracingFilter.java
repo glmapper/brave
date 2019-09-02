@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.dubbo.rpc;
 
 import brave.Span;
@@ -33,6 +46,7 @@ public final class TracingFilter implements Filter {
   Tracer tracer;
   TraceContext.Extractor<Map<String, String>> extractor;
   TraceContext.Injector<Map<String, String>> injector;
+  volatile boolean isInit = false;
 
   /**
    * {@link ExtensionLoader} supplies the tracing implementation which must be named "tracing". For
@@ -43,11 +57,12 @@ public final class TracingFilter implements Filter {
     tracer = tracing.tracer();
     extractor = tracing.propagation().extractor(GETTER);
     injector = tracing.propagation().injector(SETTER);
+    isInit = true;
   }
 
   @Override
   public Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException {
-    if (tracer == null) return invoker.invoke(invocation);
+    if (isInit == false) return invoker.invoke(invocation);
 
     RpcContext rpcContext = RpcContext.getContext();
     Kind kind = rpcContext.isProviderSide() ? Kind.SERVER : Kind.CLIENT;
@@ -58,8 +73,8 @@ public final class TracingFilter implements Filter {
     } else {
       TraceContextOrSamplingFlags extracted = extractor.extract(invocation.getAttachments());
       span = extracted.context() != null
-          ? tracer.joinSpan(extracted.context())
-          : tracer.nextSpan(extracted);
+        ? tracer.joinSpan(extracted.context())
+        : tracer.nextSpan(extracted);
     }
 
     if (!span.isNoop()) {
@@ -110,30 +125,30 @@ public final class TracingFilter implements Filter {
   }
 
   static final Propagation.Getter<Map<String, String>, String> GETTER =
-      new Propagation.Getter<Map<String, String>, String>() {
-        @Override
-        public String get(Map<String, String> carrier, String key) {
-          return carrier.get(key);
-        }
+    new Propagation.Getter<Map<String, String>, String>() {
+      @Override
+      public String get(Map<String, String> carrier, String key) {
+        return carrier.get(key);
+      }
 
-        @Override
-        public String toString() {
-          return "Map::get";
-        }
-      };
+      @Override
+      public String toString() {
+        return "Map::get";
+      }
+    };
 
   static final Propagation.Setter<Map<String, String>, String> SETTER =
-      new Propagation.Setter<Map<String, String>, String>() {
-        @Override
-        public void put(Map<String, String> carrier, String key, String value) {
-          carrier.put(key, value);
-        }
+    new Propagation.Setter<Map<String, String>, String>() {
+      @Override
+      public void put(Map<String, String> carrier, String key, String value) {
+        carrier.put(key, value);
+      }
 
-        @Override
-        public String toString() {
-          return "Map::set";
-        }
-      };
+      @Override
+      public String toString() {
+        return "Map::set";
+      }
+    };
 
   static final class FinishSpanCallback implements ResponseCallback {
     final Span span;

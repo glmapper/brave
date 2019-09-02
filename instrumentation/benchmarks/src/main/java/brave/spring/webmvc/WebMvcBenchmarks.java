@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.spring.webmvc;
 
 import brave.http.HttpServerBenchmarks;
@@ -71,14 +84,14 @@ public class WebMvcBenchmarks extends HttpServerBenchmarks {
     appContext.register(HelloController.class);
     appContext.register(SpringConfig.class);
     servletBuilder.addServlet(new ServletInfo("DispatcherServlet", DispatcherServlet.class,
-        () -> new ImmediateInstanceHandle(new DispatcherServlet(appContext))).addMapping("/*"));
+      () -> new ImmediateInstanceHandle<>(new DispatcherServlet(appContext))).addMapping("/*"));
   }
 
   // Convenience main entry-point
   public static void main(String[] args) throws RunnerException {
     Options opt = new OptionsBuilder()
-        .include(".*" + WebMvcBenchmarks.class.getSimpleName() + ".*")
-        .build();
+      .include(".*" + WebMvcBenchmarks.class.getSimpleName() + ".*")
+      .build();
 
     new Runner(opt).run();
   }

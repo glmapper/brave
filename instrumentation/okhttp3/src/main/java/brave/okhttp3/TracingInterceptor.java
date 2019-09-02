@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.okhttp3;
 
 import brave.Span;
@@ -5,6 +18,7 @@ import brave.Tracer;
 import brave.Tracing;
 import brave.http.HttpClientHandler;
 import brave.http.HttpTracing;
+import brave.internal.Nullable;
 import brave.propagation.Propagation.Setter;
 import brave.propagation.TraceContext;
 import java.io.IOException;
@@ -39,14 +53,12 @@ public final class TracingInterceptor implements Interceptor {
   }
 
   final Tracer tracer;
-  final String remoteServiceName;
   final HttpClientHandler<Request, Response> handler;
   final TraceContext.Injector<Request.Builder> injector;
 
   TracingInterceptor(HttpTracing httpTracing) {
     if (httpTracing == null) throw new NullPointerException("HttpTracing == null");
     tracer = httpTracing.tracing().tracer();
-    remoteServiceName = httpTracing.serverName();
     handler = HttpClientHandler.create(httpTracing, new HttpAdapter());
     injector = httpTracing.tracing().propagation().injector(SETTER);
   }
@@ -95,8 +107,9 @@ public final class TracingInterceptor implements Interceptor {
       return request.header(name);
     }
 
-    @Override public Integer statusCode(Response response) {
-      return statusCodeAsInt(response);
+    @Override @Nullable public Integer statusCode(Response response) {
+      int result = statusCodeAsInt(response);
+      return result != 0 ? result : null;
     }
 
     @Override public int statusCodeAsInt(Response response) {

@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.test.http;
 
 import brave.Tracer;
@@ -39,7 +52,7 @@ public abstract class ITServlet25Container extends ITServletContainer {
 
   static class ExtraServlet extends HttpServlet {
     @Override protected void doGet(HttpServletRequest req, HttpServletResponse resp)
-        throws IOException {
+      throws IOException {
       resp.getWriter().print(ExtraFieldPropagation.get(EXTRA_KEY));
     }
   }
@@ -73,7 +86,7 @@ public abstract class ITServlet25Container extends ITServletContainer {
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
-        throws IOException, ServletException {
+      throws IOException, ServletException {
       if (delegate == null) {
         chain.doFilter(request, response);
       } else {
@@ -92,7 +105,7 @@ public abstract class ITServlet25Container extends ITServletContainer {
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
-        throws IOException, ServletException {
+      throws IOException, ServletException {
       String extra = ExtraFieldPropagation.get(EXTRA_KEY);
       ((HttpServletResponse) response).setHeader(EXTRA_KEY, extra);
       chain.doFilter(request, response);
@@ -108,11 +121,11 @@ public abstract class ITServlet25Container extends ITServletContainer {
     String path = "/foo";
 
     Request request = new Request.Builder().url(url(path))
-        .header(EXTRA_KEY, "abcdefg").build();
+      .header(EXTRA_KEY, "abcdefg").build();
     try (Response response = client.newCall(request).execute()) {
       assertThat(response.isSuccessful()).isTrue();
       assertThat(response.header(EXTRA_KEY))
-          .isEqualTo("abcdefg");
+        .isEqualTo("abcdefg");
     }
 
     takeSpan();
@@ -125,7 +138,7 @@ public abstract class ITServlet25Container extends ITServletContainer {
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
-        throws IOException, ServletException {
+      throws IOException, ServletException {
       TraceContext context = (TraceContext) request.getAttribute("brave.propagation.TraceContext");
       String extra = ExtraFieldPropagation.get(context, EXTRA_KEY);
       ((HttpServletResponse) response).setHeader(EXTRA_KEY, extra);
@@ -142,11 +155,11 @@ public abstract class ITServlet25Container extends ITServletContainer {
     String path = "/foo";
 
     Request request = new Request.Builder().url(url(path))
-        .header(EXTRA_KEY, "abcdefg").build();
+      .header(EXTRA_KEY, "abcdefg").build();
     try (Response response = client.newCall(request).execute()) {
       assertThat(response.isSuccessful()).isTrue();
       assertThat(response.header(EXTRA_KEY))
-          .isEqualTo("abcdefg");
+        .isEqualTo("abcdefg");
     }
 
     takeSpan();
@@ -159,7 +172,7 @@ public abstract class ITServlet25Container extends ITServletContainer {
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
-        throws IOException, ServletException {
+      throws IOException, ServletException {
       request.setAttribute("http.route", ((HttpServletRequest) request).getRequestURI());
       chain.doFilter(request, response);
     }
@@ -169,8 +182,8 @@ public abstract class ITServlet25Container extends ITServletContainer {
   };
 
   /**
-   * Shows that by adding the request attribute "http.route" a layered framework can influence
-   * any derived from the route, including the span name.
+   * Shows that by adding the request attribute "http.route" a layered framework can influence any
+   * derived from the route, including the span name.
    */
   @Test public void canSetCustomRoute() throws Exception {
     delegate = customHttpRoute;
@@ -179,7 +192,7 @@ public abstract class ITServlet25Container extends ITServletContainer {
 
     Span span = takeSpan();
     assertThat(span.name())
-        .isEqualTo("get /foo");
+      .isEqualTo("get /foo");
   }
 
   Filter customHook = new Filter() {
@@ -188,7 +201,7 @@ public abstract class ITServlet25Container extends ITServletContainer {
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
-        throws IOException, ServletException {
+      throws IOException, ServletException {
       ((brave.SpanCustomizer) request.getAttribute("brave.SpanCustomizer")).tag("foo", "bar");
       chain.doFilter(request, response);
     }
@@ -198,8 +211,8 @@ public abstract class ITServlet25Container extends ITServletContainer {
   };
 
   /**
-   * Shows that a framework can directly use the "brave.Span" rather than relying on the
-   * current span.
+   * Shows that a framework can directly use the "brave.Span" rather than relying on the current
+   * span.
    */
   @Test public void canUseSpanAttribute() throws Exception {
     delegate = customHook;
@@ -208,7 +221,7 @@ public abstract class ITServlet25Container extends ITServletContainer {
 
     Span span = takeSpan();
     assertThat(span.tags())
-        .containsEntry("foo", "bar");
+      .containsEntry("foo", "bar");
   }
 
   @Override

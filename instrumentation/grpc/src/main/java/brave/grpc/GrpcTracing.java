@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.grpc;
 
 import brave.ErrorParser;
@@ -56,7 +69,8 @@ public final class GrpcTracing {
      * <a href="https://opencensus.io/">OpenCensus</a> implements tracing upstream or downstream.
      * Default is false.
      *
-     * <p>This wraps an existing propagation implementation, but prefers extracting "grpc-trace-bin"
+     * <p>This wraps an existing propagation implementation, but prefers extracting
+     * "grpc-trace-bin"
      * and "grpc-tags-bin" when parsing gRPC metadata. The incoming service method is propagated to
      * outgoing client requests and written in the tags context as the key named "method".
      * Regardless of whether "grpc-trace-bin" was parsed, it is speculatively written on outgoing
@@ -95,8 +109,8 @@ public final class GrpcTracing {
 
   public Builder toBuilder() {
     return new Builder(tracing)
-        .clientParser(clientParser)
-        .serverParser(serverParser);
+      .clientParser(clientParser)
+      .serverParser(serverParser);
   }
 
   /** This interceptor traces outbound calls */

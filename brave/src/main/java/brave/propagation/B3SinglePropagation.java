@@ -1,6 +1,18 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.propagation;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -8,7 +20,7 @@ import java.util.List;
 public final class B3SinglePropagation<K> implements Propagation<K> {
 
   public static final Factory FACTORY = new Factory() {
-    @Override public <K> Propagation<K> create(KeyFactory<K> keyFactory) {
+    @Override public <K1> Propagation<K1> create(KeyFactory<K1> keyFactory) {
       return new B3SinglePropagation<>(keyFactory);
     }
 
@@ -26,7 +38,7 @@ public final class B3SinglePropagation<K> implements Propagation<K> {
 
   B3SinglePropagation(KeyFactory<K> keyFactory) {
     this.b3Key = keyFactory.create("b3");
-    this.fields = Collections.unmodifiableList(Arrays.asList(b3Key));
+    this.fields = Collections.unmodifiableList(Collections.singletonList(b3Key));
   }
 
   @Override public List<K> keys() {

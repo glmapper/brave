@@ -1,3 +1,16 @@
+/*
+ * Copyright 2013-2019 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.http;
 
 import brave.Span;
@@ -30,10 +43,10 @@ import brave.propagation.TraceContextOrSamplingFlags;
  * @param <Resp> the native http response type of the server.
  */
 public final class HttpServerHandler<Req, Resp>
-    extends HttpHandler<Req, Resp, HttpServerAdapter<Req, Resp>> {
+  extends HttpHandler<Req, Resp, HttpServerAdapter<Req, Resp>> {
 
   public static <Req, Resp> HttpServerHandler<Req, Resp> create(HttpTracing httpTracing,
-      HttpServerAdapter<Req, Resp> adapter) {
+    HttpServerAdapter<Req, Resp> adapter) {
     return new HttpServerHandler<>(httpTracing, adapter);
   }
 
@@ -42,9 +55,9 @@ public final class HttpServerHandler<Req, Resp>
 
   HttpServerHandler(HttpTracing httpTracing, HttpServerAdapter<Req, Resp> adapter) {
     super(
-        httpTracing.tracing().currentTraceContext(),
-        adapter,
-        httpTracing.serverParser()
+      httpTracing.tracing().currentTraceContext(),
+      adapter,
+      httpTracing.serverParser()
     );
     this.tracer = httpTracing.tracing().tracer();
     this.sampler = httpTracing.serverSampler();
@@ -87,8 +100,8 @@ public final class HttpServerHandler<Req, Resp>
       extracted = extracted.sampled(sampled.booleanValue());
     }
     return extracted.context() != null
-        ? tracer.joinSpan(extracted.context())
-        : tracer.nextSpan(extracted);
+      ? tracer.joinSpan(extracted.context())
+      : tracer.nextSpan(extracted);
   }
 
   /**
